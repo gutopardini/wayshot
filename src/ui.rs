@@ -14,6 +14,7 @@ use gtk::gdk;
 use gtk::gio;
 use gtk::glib;
 
+use crate::APP_ID;
 use crate::editor::{self, Annotation, EditorState, Point, Rect, Tool};
 
 const ICON_CAPTURE: &[u8] = include_bytes!("../assets/icons/camera.svg");
@@ -30,6 +31,7 @@ const ICON_POINTER: &[u8] = include_bytes!("../assets/icons/pointer.svg");
 const ICON_ZOOM: &[u8] = include_bytes!("../assets/icons/zoom-in.svg");
 const ICON_SELECT: &[u8] = include_bytes!("../assets/icons/select.svg");
 const ICON_PEN: &[u8] = include_bytes!("../assets/icons/pencil.svg");
+const ICON_ERASER: &[u8] = include_bytes!("../assets/icons/eraser.svg");
 const ICON_RECT: &[u8] = include_bytes!("../assets/icons/square.svg");
 const ICON_CIRCLE: &[u8] = include_bytes!("../assets/icons/circle.svg");
 const ICON_LINE: &[u8] = include_bytes!("../assets/icons/minus.svg");
@@ -182,6 +184,11 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
     let icon_color = Rc::new(RefCell::new(String::new()));
 
     if let Some(display) = gdk::Display::default() {
+        let app_icon_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/app-icons");
+        if app_icon_dir.is_dir() {
+            gtk::IconTheme::for_display(&display).add_search_path(app_icon_dir);
+        }
+
         let css = gtk::CssProvider::new();
         gtk::style_context_add_provider_for_display(
             &display,
@@ -513,6 +520,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
     let tool_buttons: Vec<(Tool, gtk::ToggleButton)> = vec![
         (Tool::Select, make_tool_button(ICON_SELECT, "Select")),
         (Tool::Pen, make_tool_button(ICON_PEN, "Pen")),
+        (Tool::Eraser, make_tool_button(ICON_ERASER, "Eraser")),
         (Tool::Rect, make_tool_button(ICON_RECT, "Rectangle")),
         (Tool::Circle, make_tool_button(ICON_CIRCLE, "Circle")),
         (Tool::Line, make_tool_button(ICON_LINE, "Line")),
@@ -535,6 +543,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         .application(app)
         .default_width(1400)
         .default_height(900)
+        .icon_name(APP_ID)
         .title("WayShot")
         .content(&toolbar_view)
         .build();
@@ -713,16 +722,22 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         editor::draw(&state, ctx);
     });
 
+    let move_changed = Rc::new(Cell::new(false));
+    let eraser_changed = Rc::new(Cell::new(false));
     let drag = gtk::GestureDrag::new();
     {
         let state = state.clone();
         let drawing_area = drawing_area.clone();
+        let move_changed = move_changed.clone();
+        let eraser_changed = eraser_changed.clone();
         drag.connect_drag_begin(move |_, x, y| {
             let mut state = state.borrow_mut();
             let point_view = Point { x, y };
             let point = editor::map_to_image(&state, x, y);
             state.drag_start_view = Some(point_view);
             state.drag_last_image = Some(point);
+            move_changed.set(false);
+            eraser_changed.set(false);
             match state.tool {
                 Tool::Select => {
                     state.selected = editor::hit_test(&state.annotations, point);
@@ -736,6 +751,12 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                         color: state.color,
                         width: state.stroke_width,
                     });
+                }
+                Tool::Eraser => {
+                    if editor::hit_test(&state.annotations, point).is_some() {
+                        state.record_change();
+                        eraser_changed.set(state.erase_at(point));
+                    }
                 }
                 Tool::Rect => {
                     state.draft = Some(Annotation::Rect {
@@ -791,6 +812,8 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
     {
         let state = state.clone();
         let drawing_area = drawing_area.clone();
+        let move_changed = move_changed.clone();
+        let eraser_changed = eraser_changed.clone();
         drag.connect_drag_update(move |_, offset_x, offset_y| {
             let mut state = state.borrow_mut();
             let Some(start) = state.drag_start_view else {
@@ -807,11 +830,24 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                         if let Some(last) = state.drag_last_image {
                             let dx = current.x - last.x;
                             let dy = current.y - last.y;
+                            if !move_changed.get() && (dx.abs() > 0.0 || dy.abs() > 0.0) {
+                                state.record_change();
+                                move_changed.set(true);
+                            }
                             if let Some(annotation) = state.annotations.get_mut(index) {
                                 editor::move_annotation(annotation, dx, dy);
                                 state.drag_last_image = Some(current);
                             }
                         }
+                    }
+                }
+                Tool::Eraser => {
+                    if editor::hit_test(&state.annotations, current).is_some() {
+                        if !eraser_changed.get() {
+                            state.record_change();
+                            eraser_changed.set(true);
+                        }
+                        state.erase_at(current);
                     }
                 }
                 _ => match state.draft.as_mut() {
@@ -842,6 +878,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
     {
         let state = state.clone();
         let drawing_area = drawing_area.clone();
+        let move_changed = move_changed.clone();
         drag.connect_drag_end(move |_, offset_x, offset_y| {
             {
                 let mut state = state.borrow_mut();
@@ -853,6 +890,9 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                     let end = editor::map_to_image(&state, end_view.x, end_view.y);
                     match state.tool {
                         Tool::Select => {
+                            if !move_changed.get() {
+                                state.discard_unchanged_record();
+                            }
                             state.drag_last_image = None;
                         }
                         _ => {
@@ -934,15 +974,20 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                                     let drawing_area = drawing_area.clone();
                                     move |new_text| {
                                         let mut editor_state = state.borrow_mut();
-                                        if let Some(Annotation::Text {
-                                            text: annotation_text,
-                                            ..
-                                        }) = editor_state.annotations.get_mut(index)
-                                        {
-                                            *annotation_text = new_text;
-                                            editor_state.redo.clear();
-                                            editor_state.selected = Some(index);
+                                        let changed = matches!(
+                                            editor_state.annotations.get(index),
+                                            Some(Annotation::Text { text, .. }) if *text != new_text
+                                        );
+                                        if !changed {
+                                            return;
                                         }
+                                        editor_state.record_change();
+                                        if let Some(Annotation::Text { text, .. }) =
+                                            editor_state.annotations.get_mut(index)
+                                        {
+                                            *text = new_text;
+                                        }
+                                        editor_state.selected = Some(index);
                                         drawing_area.queue_draw();
                                     }
                                 });
@@ -1068,10 +1113,38 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
     {
         let state = state.clone();
         let drawing_area = drawing_area.clone();
-        undo_button.connect_clicked(move |_| {
-            state.borrow_mut().undo();
-            drawing_area.queue_draw();
-        });
+        let undo_action = gio::SimpleAction::new("undo", None);
+        {
+            let state = state.clone();
+            let drawing_area = drawing_area.clone();
+            undo_action.connect_activate(move |_, _| {
+                state.borrow_mut().undo();
+                drawing_area.queue_draw();
+            });
+        }
+        window.add_action(&undo_action);
+        app.set_accels_for_action("win.undo", &["<Control>z"]);
+
+        let redo_action = gio::SimpleAction::new("redo", None);
+        {
+            let state = state.clone();
+            let drawing_area = drawing_area.clone();
+            redo_action.connect_activate(move |_, _| {
+                state.borrow_mut().redo();
+                drawing_area.queue_draw();
+            });
+        }
+        window.add_action(&redo_action);
+        app.set_accels_for_action("win.redo", &["<Control>y"]);
+
+        {
+            let state = state.clone();
+            let drawing_area = drawing_area.clone();
+            undo_button.connect_clicked(move |_| {
+                state.borrow_mut().undo();
+                drawing_area.queue_draw();
+            });
+        }
     }
     {
         let state = state.clone();
@@ -1092,9 +1165,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
 
             let mut state = state.borrow_mut();
             if let Some(index) = state.selected.take() {
-                if index < state.annotations.len() {
-                    state.annotations.remove(index);
-                    state.redo.clear();
+                if state.remove_annotation(index).is_some() {
                     drawing_area.queue_draw();
                     return glib::Propagation::Stop;
                 }

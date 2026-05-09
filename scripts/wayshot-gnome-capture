@@ -4,6 +4,10 @@ set -euo pipefail
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(dirname "$script_dir")
 
+if [ -z "${WAYSHOT_CAPTURE_DESKTOP_LAUNCH:-}" ] && command -v gtk-launch >/dev/null 2>&1; then
+  WAYSHOT_CAPTURE_DESKTOP_LAUNCH=1 WAYSHOT_CAPTURE=1 exec gtk-launch io.github.gutopardini.wayshot
+fi
+
 if [ "${WAYSHOT_BIN:-}" ]; then
   wayshot_bin=$WAYSHOT_BIN
 elif command -v wayshot >/dev/null 2>&1; then

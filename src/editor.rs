@@ -6,13 +6,13 @@ use gtk::cairo;
 use gtk::gdk;
 use gtk::gdk::prelude::GdkCairoContextExt;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Point {
     pub x: f64,
     pub y: f64,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Rect {
     pub x1: f64,
     pub y1: f64,
@@ -30,7 +30,7 @@ impl Rect {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Annotation {
     Pen {
         points: Vec<Point>,
@@ -70,6 +70,7 @@ pub enum Annotation {
 pub enum Tool {
     Select,
     Pen,
+    Eraser,
     Rect,
     Circle,
     Line,
@@ -90,7 +91,8 @@ struct PixelateCacheKey {
 pub struct EditorState {
     pub background: Option<Pixbuf>,
     pub annotations: Vec<Annotation>,
-    pub redo: Vec<Annotation>,
+    pub history: Vec<Vec<Annotation>>,
+    pub redo: Vec<Vec<Annotation>>,
     pub tool: Tool,
     pub color: gdk::RGBA,
     pub stroke_width: f64,
@@ -112,6 +114,7 @@ impl EditorState {
         Self {
             background: None,
             annotations: Vec::new(),
+            history: Vec::new(),
             redo: Vec::new(),
             tool: Tool::Pen,
             color,
@@ -132,6 +135,7 @@ impl EditorState {
     pub fn set_background(&mut self, pixbuf: Pixbuf) {
         self.background = Some(pixbuf);
         self.annotations.clear();
+        self.history.clear();
         self.redo.clear();
         self.draft = None;
         self.drag_start_view = None;
@@ -141,19 +145,54 @@ impl EditorState {
     }
 
     pub fn push_annotation(&mut self, annotation: Annotation) {
+        self.record_change();
         self.annotations.push(annotation);
-        self.redo.clear();
     }
 
     pub fn undo(&mut self) {
-        if let Some(last) = self.annotations.pop() {
-            self.redo.push(last);
+        if let Some(previous) = self.history.pop() {
+            self.redo.push(self.annotations.clone());
+            self.annotations = previous;
+            self.draft = None;
+            self.selected = None;
         }
     }
 
     pub fn redo(&mut self) {
         if let Some(next) = self.redo.pop() {
-            self.annotations.push(next);
+            self.history.push(self.annotations.clone());
+            self.annotations = next;
+            self.draft = None;
+            self.selected = None;
+        }
+    }
+
+    pub fn record_change(&mut self) {
+        self.history.push(self.annotations.clone());
+        self.redo.clear();
+    }
+
+    pub fn discard_unchanged_record(&mut self) {
+        if self.history.last() == Some(&self.annotations) {
+            self.history.pop();
+        }
+    }
+
+    pub fn remove_annotation(&mut self, index: usize) -> Option<Annotation> {
+        if index >= self.annotations.len() {
+            return None;
+        }
+        self.record_change();
+        Some(self.annotations.remove(index))
+    }
+
+    pub fn erase_at(&mut self, point: Point) -> bool {
+        if let Some(index) = hit_test(&self.annotations, point) {
+            self.annotations.remove(index);
+            self.selected = None;
+            true
+        } else {
+            false
         }
     }
 }
