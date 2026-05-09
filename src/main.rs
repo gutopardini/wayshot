@@ -10,6 +10,9 @@ const APP_ID: &str = "io.github.gutopardini.wayshot";
 fn main() {
     use adw::prelude::*;
 
+    gtk::glib::set_prgname(Some(APP_ID));
+    gtk::glib::set_application_name("WayShot");
+
     let mut initial_capture = std::env::var_os("WAYSHOT_CAPTURE").is_some();
     let mut initial_image = None;
     for arg in std::env::args_os().skip(1) {
