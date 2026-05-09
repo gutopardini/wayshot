@@ -38,6 +38,7 @@ const ICON_LINE: &[u8] = include_bytes!("../assets/icons/minus.svg");
 const ICON_ARROW: &[u8] = include_bytes!("../assets/icons/arrow-right.svg");
 const ICON_TEXT: &[u8] = include_bytes!("../assets/icons/text-size.svg");
 const ICON_BLUR: &[u8] = include_bytes!("../assets/icons/blur.svg");
+const ICON_APP: &[u8] = include_bytes!("../assets/icons/wayshot-icon.svg");
 
 fn set_image_from_svg(image: &gtk::Image, icon: &[u8], color: &str) {
     let svg = String::from_utf8_lossy(icon).replace("#e6e6e6", color);
@@ -65,6 +66,30 @@ fn create_icon(
     set_image_from_svg(&image, icon, &color);
     icon_images.borrow_mut().push((image.clone(), icon));
     image
+}
+
+fn create_app_title() -> gtk::Box {
+    let icon = gtk::Image::new();
+    if let Ok(pixbuf) = Pixbuf::from_read(Cursor::new(ICON_APP)) {
+        let pixbuf = pixbuf.scale_simple(24, 24, gdk_pixbuf::InterpType::Bilinear);
+        let paintable = pixbuf.map(|pixbuf| gdk::Texture::for_pixbuf(&pixbuf));
+        icon.set_paintable(paintable.as_ref());
+    }
+    icon.set_pixel_size(24);
+
+    let label = gtk::Label::builder()
+        .label("WayShot")
+        .css_classes(["title"])
+        .build();
+
+    let title = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(8)
+        .valign(gtk::Align::Center)
+        .build();
+    title.append(&icon);
+    title.append(&label);
+    title
 }
 
 fn present_window(window: &adw::ApplicationWindow) {
@@ -264,7 +289,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
     }
 
     let header = adw::HeaderBar::builder()
-        .title_widget(&adw::WindowTitle::new("WayShot", ""))
+        .title_widget(&create_app_title())
         .build();
     header.add_css_class("glass-header");
 
