@@ -65,6 +65,7 @@ This installs:
 ~/.local/bin/wayshot
 ~/.local/bin/wayshot-gnome-capture
 ~/.local/share/applications/io.github.gutopardini.wayshot.desktop
+~/.local/share/icons/hicolor/scalable/apps/io.github.gutopardini.wayshot.svg
 ~/.local/share/icons/hicolor/256x256/apps/io.github.gutopardini.wayshot.png
 ~/.local/share/icons/hicolor/512x512/apps/io.github.gutopardini.wayshot.png
 ~/.local/share/icons/hicolor/1024x1024/apps/io.github.gutopardini.wayshot.png

@@ -14,7 +14,7 @@ install:
 	install -Dm755 scripts/wayshot-gnome-capture $(BINDIR)/wayshot-gnome-capture
 	install -Dm644 data/io.github.gutopardini.wayshot.desktop $(APPDIR)/io.github.gutopardini.wayshot.desktop
 	sed -i 's|^Exec=.*|Exec=$(BINDIR)/wayshot %f|' $(APPDIR)/io.github.gutopardini.wayshot.desktop
-	rm -f $(ICONDIR)/io.github.gutopardini.wayshot.svg
+	install -Dm644 assets/icons/wayshot-icon.svg $(ICONDIR)/io.github.gutopardini.wayshot.svg
 	install -Dm644 assets/app-icons/256x256/apps/io.github.gutopardini.wayshot.png $(PNGICONDIR_256)/io.github.gutopardini.wayshot.png
 	install -Dm644 assets/app-icons/512x512/apps/io.github.gutopardini.wayshot.png $(PNGICONDIR_512)/io.github.gutopardini.wayshot.png
 	install -Dm644 assets/app-icons/1024x1024/apps/io.github.gutopardini.wayshot.png $(PNGICONDIR_1024)/io.github.gutopardini.wayshot.png
@@ -23,7 +23,14 @@ install:
 		'[Icon Theme]' \
 		'Name=Hicolor' \
 		'Comment=Fallback icon theme' \
-		'Directories=256x256/apps,512x512/apps,1024x1024/apps' \
+		'Directories=scalable/apps,256x256/apps,512x512/apps,1024x1024/apps' \
+		'' \
+		'[scalable/apps]' \
+		'Size=128' \
+		'MinSize=16' \
+		'MaxSize=1024' \
+		'Type=Scalable' \
+		'Context=Applications' \
 		'' \
 		'[256x256/apps]' \
 		'Size=256' \

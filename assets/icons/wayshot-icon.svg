@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Wayshot Icon</title>
+  <desc id="desc">A GNOME-style purple screenshot annotation icon with capture corners, image frame, arrow, circle, text and pen.</desc>
+  <defs>
+    <linearGradient id="bg" x1="18" y1="10" x2="110" y2="118" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#29264d"/>
+      <stop offset="0.52" stop-color="#17172c"/>
+      <stop offset="1" stop-color="#101123"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="32" y1="28" x2="96" y2="88" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8e8aa8" stop-opacity="0.72"/>
+      <stop offset="1" stop-color="#3d3b57" stop-opacity="0.92"/>
+    </linearGradient>
+    <linearGradient id="purple" x1="42" y1="38" x2="92" y2="78" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d15cff"/>
+      <stop offset="1" stop-color="#7a2cff"/>
+    </linearGradient>
+    <linearGradient id="pen" x1="84" y1="78" x2="113" y2="107" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#c861ff"/>
+      <stop offset="1" stop-color="#6620c8"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#000" flood-opacity="0.38"/>
+    </filter>
+    <filter id="soft" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="3" stdDeviation="2.5" flood-color="#000" flood-opacity="0.32"/>
+    </filter>
+  </defs>
+
+  <g transform="translate(-8 -8) scale(1.125)">
+  <rect x="8" y="8" width="112" height="112" rx="26" fill="url(#bg)" filter="url(#shadow)"/>
+  <rect x="10" y="10" width="108" height="108" rx="24" fill="none" stroke="#ffffff" stroke-opacity="0.06"/>
+
+  <!-- screenshot/capture corners -->
+  <g fill="none" stroke="#f7f7fb" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" filter="url(#soft)">
+    <path d="M25 35V27h9"/>
+    <path d="M94 27h9v8"/>
+    <path d="M25 85v8h9"/>
+    <path d="M103 85v8h-9"/>
+  </g>
+
+  <!-- captured window -->
+  <g filter="url(#soft)">
+    <rect x="29" y="31" width="70" height="58" rx="8" fill="url(#panel)"/>
+    <path d="M29 41h70" stroke="#ffffff" stroke-opacity="0.18"/>
+    <rect x="59" y="35" width="10" height="2.4" rx="1.2" fill="#f7f7fb" opacity="0.9"/>
+    <circle cx="85" cy="36.5" r="1.6" fill="#f7f7fb" opacity="0.9"/>
+    <circle cx="91" cy="36.5" r="1.6" fill="#f7f7fb" opacity="0.9"/>
+    <circle cx="96" cy="36.5" r="1.6" fill="#f7f7fb" opacity="0.9"/>
+    <path d="M29 76l22-22 22 22 13-14 13 14v13H29z" fill="#17172c" opacity="0.46"/>
+    <circle cx="83" cy="49" r="6" fill="#f7f7fb" opacity="0.56"/>
+  </g>
+
+  <!-- annotation arrow -->
+  <path d="M43 72c12-17 25-25 41-29" fill="none" stroke="url(#purple)" stroke-width="5" stroke-linecap="round" filter="url(#soft)"/>
+  <path d="M75 39l12 2.5-7 10.2z" fill="url(#purple)" filter="url(#soft)"/>
+
+  <!-- annotation circle -->
+  <circle cx="78" cy="68" r="12" fill="none" stroke="url(#purple)" stroke-width="5" filter="url(#soft)"/>
+
+  <!-- text tool -->
+  <g fill="#f7f7fb" filter="url(#soft)">
+    <rect x="37" y="76" width="17" height="5" rx="1.2"/>
+    <rect x="43" y="78" width="5" height="21" rx="1.2"/>
+    <rect x="39" y="96" width="13" height="4.5" rx="1.2"/>
+  </g>
+
+  <!-- pen tool -->
+  <g transform="rotate(-43 98 91)" filter="url(#soft)">
+    <rect x="91" y="82" width="13" height="32" rx="6.5" fill="url(#pen)"/>
+    <rect x="91" y="78" width="13" height="8" rx="2" fill="#8b86a5"/>
+    <path d="M91 78l6.5-11 6.5 11z" fill="#f7f7fb"/>
+    <path d="M97.5 67l2.2 7h-4.4z" fill="#2d2b42" opacity="0.65"/>
+  </g>
+  </g>
+</svg>
