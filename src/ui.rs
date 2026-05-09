@@ -722,12 +722,12 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
             let point_view = Point { x, y };
             let point = editor::map_to_image(&state, x, y);
             state.drag_start_view = Some(point_view);
+            state.drag_last_image = Some(point);
             match state.tool {
                 Tool::Select => {
                     state.selected = editor::hit_test(&state.annotations, point);
-                    if let Some(index) = state.selected {
+                    if state.selected.is_some() {
                         state.draft = None;
-                        state.selected_original = Some(state.annotations[index].clone());
                     }
                 }
                 Tool::Pen => {
@@ -804,13 +804,13 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
             match state.tool {
                 Tool::Select => {
                     if let Some(index) = state.selected {
-                        if let Some(original) = state.selected_original.as_ref() {
-                            let start_img = editor::map_to_image(&state, start.x, start.y);
-                            let dx = current.x - start_img.x;
-                            let dy = current.y - start_img.y;
-                            let mut moved = original.clone();
-                            editor::move_annotation(&mut moved, dx, dy);
-                            state.annotations[index] = moved;
+                        if let Some(last) = state.drag_last_image {
+                            let dx = current.x - last.x;
+                            let dy = current.y - last.y;
+                            if let Some(annotation) = state.annotations.get_mut(index) {
+                                editor::move_annotation(annotation, dx, dy);
+                                state.drag_last_image = Some(current);
+                            }
                         }
                     }
                 }
@@ -853,7 +853,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                     let end = editor::map_to_image(&state, end_view.x, end_view.y);
                     match state.tool {
                         Tool::Select => {
-                            state.selected_original = None;
+                            state.drag_last_image = None;
                         }
                         _ => {
                             if let Some(mut draft) = state.draft.take() {
@@ -921,9 +921,6 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                 Tool::Select => {
                     let mut editor_state = state.borrow_mut();
                     editor_state.selected = editor::hit_test(&editor_state.annotations, pos);
-                    editor_state.selected_original = editor_state
-                        .selected
-                        .and_then(|index| editor_state.annotations.get(index).cloned());
                     drawing_area.queue_draw();
 
                     if n_press == 2 {
@@ -945,7 +942,6 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                                             *annotation_text = new_text;
                                             editor_state.redo.clear();
                                             editor_state.selected = Some(index);
-                                            editor_state.selected_original = None;
                                         }
                                         drawing_area.queue_draw();
                                     }
@@ -981,7 +977,6 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                 state.tool = tool;
                 state.draft = None;
                 state.selected = None;
-                state.selected_original = None;
             });
         }
 
@@ -1100,7 +1095,6 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                 if index < state.annotations.len() {
                     state.annotations.remove(index);
                     state.redo.clear();
-                    state.selected_original = None;
                     drawing_area.queue_draw();
                     return glib::Propagation::Stop;
                 }

@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
+
 use gdk_pixbuf::Pixbuf;
 use gtk::cairo;
 use gtk::gdk;
@@ -75,6 +78,15 @@ pub enum Tool {
     Blur,
 }
 
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct PixelateCacheKey {
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    pixel_size: i32,
+}
+
 pub struct EditorState {
     pub background: Option<Pixbuf>,
     pub annotations: Vec<Annotation>,
@@ -85,12 +97,13 @@ pub struct EditorState {
     pub text_size: f64,
     pub draft: Option<Annotation>,
     pub drag_start_view: Option<Point>,
+    pub drag_last_image: Option<Point>,
     pub viewport_width: i32,
     pub viewport_height: i32,
     pub fit_to_window: bool,
     pub zoom: f64,
     pub selected: Option<usize>,
-    pub selected_original: Option<Annotation>,
+    pixelate_cache: RefCell<HashMap<PixelateCacheKey, Pixbuf>>,
 }
 
 impl EditorState {
@@ -106,12 +119,13 @@ impl EditorState {
             text_size: 22.0,
             draft: None,
             drag_start_view: None,
+            drag_last_image: None,
             viewport_width: 0,
             viewport_height: 0,
             fit_to_window: true,
             zoom: 1.0,
             selected: None,
-            selected_original: None,
+            pixelate_cache: RefCell::new(HashMap::new()),
         }
     }
 
@@ -121,8 +135,9 @@ impl EditorState {
         self.redo.clear();
         self.draft = None;
         self.drag_start_view = None;
+        self.drag_last_image = None;
         self.selected = None;
-        self.selected_original = None;
+        self.pixelate_cache.borrow_mut().clear();
     }
 
     pub fn push_annotation(&mut self, annotation: Annotation) {
@@ -154,8 +169,16 @@ pub fn draw(state: &EditorState, ctx: &cairo::Context) {
         let _ = ctx.paint();
     }
 
-    for annotation in state.annotations.iter().chain(state.draft.iter()) {
-        draw_annotation(ctx, annotation, state.background.as_ref());
+    for annotation in state.annotations.iter() {
+        draw_annotation(
+            ctx,
+            annotation,
+            state.background.as_ref(),
+            Some(&state.pixelate_cache),
+        );
+    }
+    for annotation in state.draft.iter() {
+        draw_annotation(ctx, annotation, state.background.as_ref(), None);
     }
 
     if let Some(index) = state.selected {
@@ -181,7 +204,12 @@ pub fn render_to_pixbuf(state: &EditorState) -> Option<Pixbuf> {
     ctx.set_source_pixbuf(background, 0.0, 0.0);
     let _ = ctx.paint();
     for annotation in state.annotations.iter() {
-        draw_annotation(&ctx, annotation, Some(background));
+        draw_annotation(
+            &ctx,
+            annotation,
+            Some(background),
+            Some(&state.pixelate_cache),
+        );
     }
     #[allow(deprecated)]
     gtk::gdk::pixbuf_get_from_surface(&surface, 0, 0, width, height)
@@ -216,7 +244,12 @@ pub fn map_to_image(state: &EditorState, x: f64, y: f64) -> Point {
     }
 }
 
-fn draw_annotation(ctx: &cairo::Context, annotation: &Annotation, background: Option<&Pixbuf>) {
+fn draw_annotation(
+    ctx: &cairo::Context,
+    annotation: &Annotation,
+    background: Option<&Pixbuf>,
+    pixelate_cache: Option<&RefCell<HashMap<PixelateCacheKey, Pixbuf>>>,
+) {
     match annotation {
         Annotation::Pen {
             points,
@@ -294,7 +327,7 @@ fn draw_annotation(ctx: &cairo::Context, annotation: &Annotation, background: Op
         }
         Annotation::Blur { rect, pixel_size } => {
             if let Some(background) = background {
-                draw_pixelate(ctx, *rect, *pixel_size, background);
+                draw_pixelate(ctx, *rect, *pixel_size, background, pixelate_cache);
             }
         }
     }
@@ -452,40 +485,36 @@ fn set_source_rgba(ctx: &cairo::Context, color: &gdk::RGBA) {
     );
 }
 
-fn draw_pixelate(ctx: &cairo::Context, rect: Rect, pixel_size: i32, background: &Pixbuf) {
-    let (x, y, w, h) = rect.normalized();
-    if w < 1.0 || h < 1.0 {
+fn draw_pixelate(
+    ctx: &cairo::Context,
+    rect: Rect,
+    pixel_size: i32,
+    background: &Pixbuf,
+    cache: Option<&RefCell<HashMap<PixelateCacheKey, Pixbuf>>>,
+) {
+    let Some((key, x, y, w, h)) = pixelate_geometry(rect, pixel_size, background) else {
         return;
-    }
-
-    let max_w = background.width() as f64;
-    let max_h = background.height() as f64;
-    let x = x.max(0.0).min(max_w);
-    let y = y.max(0.0).min(max_h);
-    let w = w.min(max_w - x).max(1.0);
-    let h = h.min(max_h - y).max(1.0);
-
-    let sub = Pixbuf::new_subpixbuf(
-        background,
-        x.round() as i32,
-        y.round() as i32,
-        w.round() as i32,
-        h.round() as i32,
-    );
-
-    let small_w = (w / pixel_size as f64).max(1.0).round() as i32;
-    let small_h = (h / pixel_size as f64).max(1.0).round() as i32;
-    let small = match sub.scale_simple(small_w, small_h, gdk_pixbuf::InterpType::Nearest) {
-        Some(pix) => pix,
-        None => return,
     };
-    let pixelated = match small.scale_simple(
-        w.round() as i32,
-        h.round() as i32,
-        gdk_pixbuf::InterpType::Nearest,
-    ) {
-        Some(pix) => pix,
-        None => return,
+
+    let pixelated = if let Some(cache) = cache {
+        if let Some(pixelated) = cache.borrow().get(&key).cloned() {
+            pixelated
+        } else {
+            let Some(pixelated) = create_pixelated_pixbuf(background, key) else {
+                return;
+            };
+            let mut cache = cache.borrow_mut();
+            if cache.len() > 64 {
+                cache.clear();
+            }
+            cache.insert(key, pixelated.clone());
+            pixelated
+        }
+    } else {
+        let Some(pixelated) = create_pixelated_pixbuf(background, key) else {
+            return;
+        };
+        pixelated
     };
 
     let _ = ctx.save();
@@ -494,4 +523,47 @@ fn draw_pixelate(ctx: &cairo::Context, rect: Rect, pixel_size: i32, background: 
     ctx.set_source_pixbuf(&pixelated, x, y);
     let _ = ctx.paint();
     let _ = ctx.restore();
+}
+
+fn pixelate_geometry(
+    rect: Rect,
+    pixel_size: i32,
+    background: &Pixbuf,
+) -> Option<(PixelateCacheKey, f64, f64, f64, f64)> {
+    let (x, y, w, h) = rect.normalized();
+    if w < 1.0 || h < 1.0 {
+        return None;
+    }
+
+    let max_w = background.width() as f64;
+    let max_h = background.height() as f64;
+    let x = x.max(0.0).min(max_w).round() as i32;
+    let y = y.max(0.0).min(max_h).round() as i32;
+    let w = w.min(max_w - x as f64).max(1.0).round() as i32;
+    let h = h.min(max_h - y as f64).max(1.0).round() as i32;
+
+    if x >= background.width() || y >= background.height() || w <= 0 || h <= 0 {
+        return None;
+    }
+
+    let w = w.min(background.width() - x).max(1);
+    let h = h.min(background.height() - y).max(1);
+    let key = PixelateCacheKey {
+        x,
+        y,
+        width: w,
+        height: h,
+        pixel_size: pixel_size.max(1),
+    };
+
+    Some((key, x as f64, y as f64, w as f64, h as f64))
+}
+
+fn create_pixelated_pixbuf(background: &Pixbuf, key: PixelateCacheKey) -> Option<Pixbuf> {
+    let sub = Pixbuf::new_subpixbuf(background, key.x, key.y, key.width, key.height);
+
+    let small_w = (key.width as f64 / key.pixel_size as f64).max(1.0).round() as i32;
+    let small_h = (key.height as f64 / key.pixel_size as f64).max(1.0).round() as i32;
+    let small = sub.scale_simple(small_w, small_h, gdk_pixbuf::InterpType::Nearest)?;
+    small.scale_simple(key.width, key.height, gdk_pixbuf::InterpType::Nearest)
 }
