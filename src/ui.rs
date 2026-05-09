@@ -815,25 +815,92 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
     {
         let state = state.clone();
         let drawing_area = drawing_area.clone();
+        let window = window.clone();
         click.connect_pressed(move |_, _, x, y| {
             let pos = {
                 let state = state.borrow();
                 editor::map_to_image(&state, x, y)
             };
-            let mut state = state.borrow_mut();
-            match state.tool {
+            let tool = state.borrow().tool;
+            match tool {
                 Tool::Text => {
-                    let color = state.color;
-                    let size = state.text_size;
-                    state.push_annotation(Annotation::Text {
-                        pos,
-                        text: "Text".to_string(),
-                        color,
-                        size,
+                    let (color, size) = {
+                        let state = state.borrow();
+                        (state.color, state.text_size)
+                    };
+                    let text_window = gtk::Window::builder()
+                        .transient_for(&window)
+                        .modal(true)
+                        .title("Add Text")
+                        .default_width(360)
+                        .build();
+
+                    let text_box = gtk::Box::builder()
+                        .orientation(gtk::Orientation::Vertical)
+                        .spacing(12)
+                        .margin_top(16)
+                        .margin_bottom(16)
+                        .margin_start(16)
+                        .margin_end(16)
+                        .build();
+
+                    let entry = gtk::Entry::builder()
+                        .placeholder_text("Text")
+                        .activates_default(true)
+                        .build();
+                    text_box.append(&entry);
+
+                    let actions = gtk::Box::builder()
+                        .orientation(gtk::Orientation::Horizontal)
+                        .spacing(8)
+                        .halign(gtk::Align::End)
+                        .build();
+                    let cancel_button = gtk::Button::with_label("Cancel");
+                    let add_button = gtk::Button::with_label("Add");
+                    add_button.add_css_class("suggested-action");
+                    actions.append(&cancel_button);
+                    actions.append(&add_button);
+                    text_box.append(&actions);
+                    text_window.set_child(Some(&text_box));
+
+                    let add_text = Rc::new({
+                        let state = state.clone();
+                        let drawing_area = drawing_area.clone();
+                        let entry = entry.clone();
+                        let text_window = text_window.clone();
+                        move || {
+                            let text = entry.text().trim().to_string();
+                            if !text.is_empty() {
+                                state.borrow_mut().push_annotation(Annotation::Text {
+                                    pos,
+                                    text,
+                                    color,
+                                    size,
+                                });
+                                drawing_area.queue_draw();
+                            }
+                            text_window.close();
+                        }
                     });
-                    drawing_area.queue_draw();
+
+                    {
+                        let add_text = add_text.clone();
+                        add_button.connect_clicked(move |_| add_text());
+                    }
+                    {
+                        let add_text = add_text.clone();
+                        entry.connect_activate(move |_| add_text());
+                    }
+                    {
+                        let text_window = text_window.clone();
+                        cancel_button.connect_clicked(move |_| text_window.close());
+                    }
+
+                    text_window.present();
+                    entry.grab_focus();
                 }
                 Tool::Select => {
+                    let mut state = state.borrow_mut();
                     state.selected = editor::hit_test(&state.annotations, pos);
                     state.selected_original = state
                         .selected
