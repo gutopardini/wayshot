@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/icons/wayshot.png" alt="WayShot" width="256">
+</p>
+
 # WayShot
 
 WayShot is a fast screenshot and annotation tool for Linux, built around a clean GNOME/Wayland workflow.
