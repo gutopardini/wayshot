@@ -72,6 +72,82 @@ fn present_window(window: &adw::ApplicationWindow) {
     window.present_with_time(gdk::CURRENT_TIME);
 }
 
+fn show_text_editor(
+    window: &adw::ApplicationWindow,
+    title: &str,
+    initial_text: Option<&str>,
+    on_submit: impl Fn(String) + 'static,
+) {
+    let text_window = gtk::Window::builder()
+        .transient_for(window)
+        .modal(true)
+        .title(title)
+        .default_width(360)
+        .build();
+
+    let text_box = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(12)
+        .margin_top(16)
+        .margin_bottom(16)
+        .margin_start(16)
+        .margin_end(16)
+        .build();
+
+    let entry = gtk::Entry::builder()
+        .placeholder_text("Text")
+        .activates_default(true)
+        .build();
+    if let Some(text) = initial_text {
+        entry.set_text(text);
+    }
+    text_box.append(&entry);
+
+    let actions = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(8)
+        .halign(gtk::Align::End)
+        .build();
+    let cancel_button = gtk::Button::with_label("Cancel");
+    let add_button = gtk::Button::with_label("OK");
+    add_button.add_css_class("suggested-action");
+    actions.append(&cancel_button);
+    actions.append(&add_button);
+    text_box.append(&actions);
+    text_window.set_child(Some(&text_box));
+
+    let on_submit: Rc<dyn Fn(String)> = Rc::new(on_submit);
+    let submit = Rc::new({
+        let entry = entry.clone();
+        let text_window = text_window.clone();
+        let on_submit = on_submit.clone();
+        move || {
+            let text = entry.text().trim().to_string();
+            if !text.is_empty() {
+                on_submit(text);
+            }
+            text_window.close();
+        }
+    });
+
+    {
+        let submit = submit.clone();
+        add_button.connect_clicked(move |_| submit());
+    }
+    {
+        let submit = submit.clone();
+        entry.connect_activate(move |_| submit());
+    }
+    {
+        let text_window = text_window.clone();
+        cancel_button.connect_clicked(move |_| text_window.close());
+    }
+
+    text_window.present();
+    entry.grab_focus();
+    entry.select_region(0, -1);
+}
+
 fn copy_png_with_wl_copy(pixbuf: &Pixbuf) -> Result<(), String> {
     let png = pixbuf
         .save_to_bufferv("png", &[])
@@ -816,7 +892,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         let state = state.clone();
         let drawing_area = drawing_area.clone();
         let window = window.clone();
-        click.connect_pressed(move |_, _, x, y| {
+        click.connect_pressed(move |_, n_press, x, y| {
             let pos = {
                 let state = state.borrow();
                 editor::map_to_image(&state, x, y)
@@ -828,84 +904,55 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                         let state = state.borrow();
                         (state.color, state.text_size)
                     };
-                    let text_window = gtk::Window::builder()
-                        .transient_for(&window)
-                        .modal(true)
-                        .title("Add Text")
-                        .default_width(360)
-                        .build();
-
-                    let text_box = gtk::Box::builder()
-                        .orientation(gtk::Orientation::Vertical)
-                        .spacing(12)
-                        .margin_top(16)
-                        .margin_bottom(16)
-                        .margin_start(16)
-                        .margin_end(16)
-                        .build();
-
-                    let entry = gtk::Entry::builder()
-                        .placeholder_text("Text")
-                        .activates_default(true)
-                        .build();
-                    text_box.append(&entry);
-
-                    let actions = gtk::Box::builder()
-                        .orientation(gtk::Orientation::Horizontal)
-                        .spacing(8)
-                        .halign(gtk::Align::End)
-                        .build();
-                    let cancel_button = gtk::Button::with_label("Cancel");
-                    let add_button = gtk::Button::with_label("Add");
-                    add_button.add_css_class("suggested-action");
-                    actions.append(&cancel_button);
-                    actions.append(&add_button);
-                    text_box.append(&actions);
-                    text_window.set_child(Some(&text_box));
-
-                    let add_text = Rc::new({
+                    show_text_editor(&window, "Add Text", None, {
                         let state = state.clone();
                         let drawing_area = drawing_area.clone();
-                        let entry = entry.clone();
-                        let text_window = text_window.clone();
-                        move || {
-                            let text = entry.text().trim().to_string();
-                            if !text.is_empty() {
-                                state.borrow_mut().push_annotation(Annotation::Text {
-                                    pos,
-                                    text,
-                                    color,
-                                    size,
-                                });
-                                drawing_area.queue_draw();
-                            }
-                            text_window.close();
+                        move |text| {
+                            state.borrow_mut().push_annotation(Annotation::Text {
+                                pos,
+                                text,
+                                color,
+                                size,
+                            });
+                            drawing_area.queue_draw();
                         }
                     });
-
-                    {
-                        let add_text = add_text.clone();
-                        add_button.connect_clicked(move |_| add_text());
-                    }
-                    {
-                        let add_text = add_text.clone();
-                        entry.connect_activate(move |_| add_text());
-                    }
-                    {
-                        let text_window = text_window.clone();
-                        cancel_button.connect_clicked(move |_| text_window.close());
-                    }
-
-                    text_window.present();
-                    entry.grab_focus();
                 }
                 Tool::Select => {
-                    let mut state = state.borrow_mut();
-                    state.selected = editor::hit_test(&state.annotations, pos);
-                    state.selected_original = state
+                    let mut editor_state = state.borrow_mut();
+                    editor_state.selected = editor::hit_test(&editor_state.annotations, pos);
+                    editor_state.selected_original = editor_state
                         .selected
-                        .and_then(|index| state.annotations.get(index).cloned());
+                        .and_then(|index| editor_state.annotations.get(index).cloned());
                     drawing_area.queue_draw();
+
+                    if n_press == 2 {
+                        if let Some(index) = editor_state.selected {
+                            if let Some(Annotation::Text { text, .. }) =
+                                editor_state.annotations.get(index).cloned()
+                            {
+                                drop(editor_state);
+                                show_text_editor(&window, "Edit Text", Some(&text), {
+                                    let state = state.clone();
+                                    let drawing_area = drawing_area.clone();
+                                    move |new_text| {
+                                        let mut editor_state = state.borrow_mut();
+                                        if let Some(Annotation::Text {
+                                            text: annotation_text,
+                                            ..
+                                        }) = editor_state.annotations.get_mut(index)
+                                        {
+                                            *annotation_text = new_text;
+                                            editor_state.redo.clear();
+                                            editor_state.selected = Some(index);
+                                            editor_state.selected_original = None;
+                                        }
+                                        drawing_area.queue_draw();
+                                    }
+                                });
+                            }
+                        }
+                    }
                 }
                 _ => {}
             }
@@ -1038,6 +1085,30 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
             state.borrow_mut().redo();
             drawing_area.queue_draw();
         });
+    }
+    {
+        let state = state.clone();
+        let drawing_area = drawing_area.clone();
+        let key_controller = gtk::EventControllerKey::new();
+        key_controller.connect_key_pressed(move |_, key, _, _| {
+            if key != gdk::Key::Delete && key != gdk::Key::BackSpace {
+                return glib::Propagation::Proceed;
+            }
+
+            let mut state = state.borrow_mut();
+            if let Some(index) = state.selected.take() {
+                if index < state.annotations.len() {
+                    state.annotations.remove(index);
+                    state.redo.clear();
+                    state.selected_original = None;
+                    drawing_area.queue_draw();
+                    return glib::Propagation::Stop;
+                }
+            }
+
+            glib::Propagation::Proceed
+        });
+        window.add_controller(key_controller);
     }
 
     {
