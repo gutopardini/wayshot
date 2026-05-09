@@ -9,8 +9,6 @@ It is designed for the common “capture, mark, copy, paste” loop:
 3. Press `Ctrl+C`.
 4. Paste the final image into chat, issues, docs, or email.
 
-WayShot is based on [GreatShot](https://github.com/furqanalishah/greatshot), with a renamed identity, visual refresh, GNOME capture helper, clipboard workflow improvements, and additional editor changes.
-
 ## Features
 
 - Screenshot capture through the XDG desktop portal.
@@ -125,9 +123,3 @@ Build and install locally:
 ```sh
 flatpak-builder --force-clean --install-deps-from=flathub --user --install build-flatpak flatpak/io.github.gutopardini.wayshot.yml
 ```
-
-## Credits
-
-WayShot is based on [GreatShot](https://github.com/furqanalishah/greatshot).
-
-GreatShot was created by Furqan Ali Shah as a minimal screenshot and annotation tool for GNOME/Wayland. WayShot keeps that foundation and evolves it with a new identity, workflow, and visual direction.
