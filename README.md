@@ -148,3 +148,9 @@ Build and install locally:
 ```sh
 flatpak-builder --force-clean --install-deps-from=flathub --user --install build-flatpak flatpak/io.github.gutopardini.wayshot.yml
 ```
+
+## Support
+
+<a href="https://www.buymeacoffee.com/gutopardini" target="_blank">
+  <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=&slug=gutopardini&button_colour=BD5FFF&font_colour=ffffff&font_family=Cookie&outline_colour=000000&coffee_colour=FFDD00" alt="Buy me a coffee">
+</a>
