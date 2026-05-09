@@ -184,94 +184,36 @@ fn draw_backdrop(
     let height = state.viewport_height.max(1) as f64;
 
     let _ = ctx.save();
-    ctx.set_source_rgb(0.035, 0.045, 0.065);
+    ctx.set_source_rgb(0.035, 0.043, 0.055);
     ctx.rectangle(0.0, 0.0, width, height);
     let _ = ctx.fill();
 
     if let Some(background) = state.background.as_ref() {
         let image_w = background.width().max(1) as f64;
         let image_h = background.height().max(1) as f64;
-        let cover_scale = (width / image_w).max(height / image_h).max(0.01);
-        let cover_w = image_w * cover_scale;
-        let cover_h = image_h * cover_scale;
-        let cover_x = (width - cover_w) / 2.0;
-        let cover_y = (height - cover_h) / 2.0;
-
-        let _ = ctx.save();
-        ctx.translate(cover_x, cover_y);
-        ctx.scale(cover_scale, cover_scale);
-        ctx.set_source_pixbuf(background, 0.0, 0.0);
-        let _ = ctx.paint_with_alpha(0.24);
-        let _ = ctx.restore();
-
-        ctx.set_source_rgba(0.02, 0.03, 0.05, 0.56);
-        ctx.rectangle(0.0, 0.0, width, height);
-        let _ = ctx.fill();
-
         let image_frame_w = image_w * scale;
         let image_frame_h = image_h * scale;
-        for step in (1..=7).rev() {
-            let spread = step as f64 * 5.0;
-            let alpha = 0.018 * step as f64;
-            ctx.set_source_rgba(0.0, 0.0, 0.0, alpha);
-            rounded_rect(
-                ctx,
-                offset_x - spread,
-                offset_y - spread,
-                image_frame_w + spread * 2.0,
-                image_frame_h + spread * 2.0,
-                18.0 + spread,
-            );
-            let _ = ctx.fill();
-        }
 
-        ctx.set_source_rgba(1.0, 1.0, 1.0, 0.12);
-        rounded_rect(
-            ctx,
+        ctx.set_source_rgba(0.0, 0.0, 0.0, 0.28);
+        ctx.rectangle(
+            offset_x + 10.0,
+            offset_y + 12.0,
+            image_frame_w,
+            image_frame_h,
+        );
+        let _ = ctx.fill();
+
+        ctx.set_source_rgba(1.0, 1.0, 1.0, 0.14);
+        ctx.rectangle(
             offset_x - 1.0,
             offset_y - 1.0,
             image_frame_w + 2.0,
             image_frame_h + 2.0,
-            12.0,
         );
         let _ = ctx.stroke();
     }
 
     let _ = ctx.restore();
-}
-
-fn rounded_rect(ctx: &cairo::Context, x: f64, y: f64, width: f64, height: f64, radius: f64) {
-    let radius = radius.min(width / 2.0).min(height / 2.0).max(0.0);
-    ctx.new_sub_path();
-    ctx.arc(
-        x + width - radius,
-        y + radius,
-        radius,
-        -std::f64::consts::FRAC_PI_2,
-        0.0,
-    );
-    ctx.arc(
-        x + width - radius,
-        y + height - radius,
-        radius,
-        0.0,
-        std::f64::consts::FRAC_PI_2,
-    );
-    ctx.arc(
-        x + radius,
-        y + height - radius,
-        radius,
-        std::f64::consts::FRAC_PI_2,
-        std::f64::consts::PI,
-    );
-    ctx.arc(
-        x + radius,
-        y + radius,
-        radius,
-        std::f64::consts::PI,
-        std::f64::consts::PI * 1.5,
-    );
-    ctx.close_path();
 }
 
 pub fn render_to_pixbuf(state: &EditorState) -> Option<Pixbuf> {
