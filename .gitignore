@@ -1,2 +1,7 @@
 /target
 /docs/*.md
+/.idea/.gitignore
+/.idea/encodings.xml
+/.idea/modules.xml
+/.idea/vcs.xml
+/.idea/wayshot.iml
