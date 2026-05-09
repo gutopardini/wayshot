@@ -145,7 +145,6 @@ impl EditorState {
 
 pub fn draw(state: &EditorState, ctx: &cairo::Context) {
     let (scale, offset_x, offset_y) = view_transform(state);
-    draw_backdrop(state, ctx, scale, offset_x, offset_y);
     let _ = ctx.save();
     ctx.translate(offset_x, offset_y);
     ctx.scale(scale, scale);
@@ -170,49 +169,6 @@ pub fn draw(state: &EditorState, ctx: &cairo::Context) {
             let _ = ctx.restore();
         }
     }
-    let _ = ctx.restore();
-}
-
-fn draw_backdrop(
-    state: &EditorState,
-    ctx: &cairo::Context,
-    scale: f64,
-    offset_x: f64,
-    offset_y: f64,
-) {
-    let width = state.viewport_width.max(1) as f64;
-    let height = state.viewport_height.max(1) as f64;
-
-    let _ = ctx.save();
-    ctx.set_source_rgb(0.035, 0.043, 0.055);
-    ctx.rectangle(0.0, 0.0, width, height);
-    let _ = ctx.fill();
-
-    if let Some(background) = state.background.as_ref() {
-        let image_w = background.width().max(1) as f64;
-        let image_h = background.height().max(1) as f64;
-        let image_frame_w = image_w * scale;
-        let image_frame_h = image_h * scale;
-
-        ctx.set_source_rgba(0.0, 0.0, 0.0, 0.28);
-        ctx.rectangle(
-            offset_x + 10.0,
-            offset_y + 12.0,
-            image_frame_w,
-            image_frame_h,
-        );
-        let _ = ctx.fill();
-
-        ctx.set_source_rgba(1.0, 1.0, 1.0, 0.14);
-        ctx.rectangle(
-            offset_x - 1.0,
-            offset_y - 1.0,
-            image_frame_w + 2.0,
-            image_frame_h + 2.0,
-        );
-        let _ = ctx.stroke();
-    }
-
     let _ = ctx.restore();
 }
 
@@ -299,11 +255,9 @@ fn draw_annotation(ctx: &cairo::Context, annotation: &Annotation, background: Op
             let _ = ctx.save();
             set_source_rgba(ctx, color);
             ctx.set_line_width(*width);
-            ctx.translate(x + w / 2.0, y + h / 2.0);
-            ctx.scale(w / 2.0, h / 2.0);
-            ctx.arc(0.0, 0.0, 1.0, 0.0, std::f64::consts::PI * 2.0);
-            let _ = ctx.restore();
+            ellipse_path(ctx, x, y, w, h);
             let _ = ctx.stroke();
+            let _ = ctx.restore();
         }
         Annotation::Line {
             start,
@@ -344,6 +298,23 @@ fn draw_annotation(ctx: &cairo::Context, annotation: &Annotation, background: Op
             }
         }
     }
+}
+
+fn ellipse_path(ctx: &cairo::Context, x: f64, y: f64, width: f64, height: f64) {
+    let kappa = 0.552_284_749_830_793_6;
+    let rx = width / 2.0;
+    let ry = height / 2.0;
+    let cx = x + rx;
+    let cy = y + ry;
+    let ox = rx * kappa;
+    let oy = ry * kappa;
+
+    ctx.move_to(cx + rx, cy);
+    ctx.curve_to(cx + rx, cy + oy, cx + ox, cy + ry, cx, cy + ry);
+    ctx.curve_to(cx - ox, cy + ry, cx - rx, cy + oy, cx - rx, cy);
+    ctx.curve_to(cx - rx, cy - oy, cx - ox, cy - ry, cx, cy - ry);
+    ctx.curve_to(cx + ox, cy - ry, cx + rx, cy - oy, cx + rx, cy);
+    ctx.close_path();
 }
 
 pub fn annotation_bounds(annotation: &Annotation) -> Option<Rect> {

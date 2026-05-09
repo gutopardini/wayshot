@@ -623,8 +623,14 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                 let (scale, _, _) = editor::view_transform(&state);
                 let scaled_w = (background.width() as f64 * scale).round() as i32;
                 let scaled_h = (background.height() as f64 * scale).round() as i32;
-                draw_area_for_draw.set_content_width(scaled_w.max(1));
-                draw_area_for_draw.set_content_height(scaled_h.max(1));
+                let content_w = scaled_w.max(1);
+                let content_h = scaled_h.max(1);
+                if draw_area_for_draw.content_width() != content_w {
+                    draw_area_for_draw.set_content_width(content_w);
+                }
+                if draw_area_for_draw.content_height() != content_h {
+                    draw_area_for_draw.set_content_height(content_h);
+                }
             }
         }
         let state = state_for_draw.borrow();
