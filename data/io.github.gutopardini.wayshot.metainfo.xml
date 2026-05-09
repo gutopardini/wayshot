@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.gutopardini.wayshot</id>
+  <name>WayShot</name>
+  <summary>Screenshot and annotate with a fast, minimal workflow</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-WayShot-NonCommercial</project_license>
+  <developer_name>Guto Pardini</developer_name>
+  <description>
+    <p>
+      WayShot is a fast, minimal screenshot and annotation tool inspired by Flameshot.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.gutopardini.wayshot.desktop</launchable>
+  <url type="homepage">https://github.com/gutopardini/wayshot</url>
+  <url type="bugtracker">https://github.com/gutopardini/wayshot/issues</url>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/gutopardini/wayshot/main/data/screenshots/1.png</image>
+    </screenshot>
+  </screenshots>
+  <provides>
+    <binary>wayshot</binary>
+  </provides>
+</component>

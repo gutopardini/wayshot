@@ -1,16 +1,18 @@
 use std::cell::{Cell, RefCell};
-use std::io::Cursor;
+use std::io::{Cursor, Write};
+use std::path::PathBuf;
+use std::process::{Command, Stdio};
 use std::rc::Rc;
-use std::sync::mpsc;
 use std::sync::Arc;
+use std::sync::mpsc;
 use std::time::Duration;
 
 use adw::prelude::*;
 use ashpd::desktop::screenshot::Screenshot;
+use gdk_pixbuf::Pixbuf;
 use gtk::gdk;
 use gtk::gio;
 use gtk::glib;
-use gdk_pixbuf::Pixbuf;
 
 use crate::editor::{self, Annotation, EditorState, Point, Rect, Tool};
 
@@ -27,9 +29,9 @@ const ICON_CLOCK: &[u8] = include_bytes!("../assets/icons/clock.svg");
 const ICON_POINTER: &[u8] = include_bytes!("../assets/icons/pointer.svg");
 const ICON_ZOOM: &[u8] = include_bytes!("../assets/icons/zoom-in.svg");
 const ICON_SELECT: &[u8] = include_bytes!("../assets/icons/select.svg");
-const ICON_CROP: &[u8] = include_bytes!("../assets/icons/crop.svg");
 const ICON_PEN: &[u8] = include_bytes!("../assets/icons/pencil.svg");
 const ICON_RECT: &[u8] = include_bytes!("../assets/icons/square.svg");
+const ICON_CIRCLE: &[u8] = include_bytes!("../assets/icons/circle.svg");
 const ICON_LINE: &[u8] = include_bytes!("../assets/icons/minus.svg");
 const ICON_ARROW: &[u8] = include_bytes!("../assets/icons/arrow-right.svg");
 const ICON_TEXT: &[u8] = include_bytes!("../assets/icons/text-size.svg");
@@ -63,10 +65,33 @@ fn create_icon(
     image
 }
 
-pub fn build_ui(app: &adw::Application) {
-    let runtime = Arc::new(
-        tokio::runtime::Runtime::new().expect("Failed to start async runtime"),
-    );
+fn present_window(window: &adw::ApplicationWindow) {
+    window.set_visible(true);
+    window.unminimize();
+    #[allow(deprecated)]
+    window.present_with_time(gdk::CURRENT_TIME);
+}
+
+fn copy_png_with_wl_copy(pixbuf: &Pixbuf) -> Result<(), String> {
+    let png = pixbuf
+        .save_to_bufferv("png", &[])
+        .map_err(|err| err.to_string())?;
+    let mut child = Command::new("wl-copy")
+        .args(["--type", "image/png"])
+        .stdin(Stdio::piped())
+        .spawn()
+        .map_err(|err| err.to_string())?;
+    let mut stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| "Failed to open wl-copy stdin.".to_string())?;
+    stdin.write_all(&png).map_err(|err| err.to_string())?;
+    drop(stdin);
+    Ok(())
+}
+
+pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_capture: bool) {
+    let runtime = Arc::new(tokio::runtime::Runtime::new().expect("Failed to start async runtime"));
 
     let state = Rc::new(RefCell::new(EditorState::new()));
     {
@@ -94,14 +119,15 @@ pub fn build_ui(app: &adw::Application) {
         let apply_theme_css = move |is_dark: bool| {
             if is_dark {
                 css_provider.load_from_string(
-                    ".tool-palette { background: rgba(18, 18, 18, 0.78); border-radius: 16px; padding: 10px; border: 1px solid rgba(255,255,255,0.06); box-shadow: 0 12px 30px rgba(0,0,0,0.35); }
-                     .tool-button { min-width: 38px; min-height: 38px; border-radius: 10px; }
-                     .tool-button.toggle:hover { background: rgba(255, 255, 255, 0.08); }
-                     .tool-button.toggle:checked { background: rgba(255, 255, 255, 0.18); box-shadow: inset 0 0 0 2px rgba(255,255,255,0.55); }
-                     .color-palette { background: rgba(18, 18, 18, 0.72); border-radius: 12px; padding: 8px; border: 1px solid rgba(255,255,255,0.06); }
-                     .color-swatch { min-width: 20px; min-height: 20px; border-radius: 999px; border: 2px solid rgba(255,255,255,0.18); }
-                     .color-swatch.toggle:checked { border: 2px solid rgba(255,255,255,0.9); }
-                     .color-custom { min-width: 20px; min-height: 20px; border-radius: 999px; border: 2px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.08); }
+                    ".glass-header { background: rgba(10, 12, 16, 0.72); border-bottom: 1px solid rgba(255,255,255,0.07); box-shadow: 0 10px 28px rgba(0,0,0,0.22); }
+                     .tool-palette { background: rgba(18, 21, 27, 0.58); border-radius: 18px; padding: 10px; border: 1px solid rgba(255,255,255,0.14); box-shadow: 0 18px 46px rgba(0,0,0,0.42); }
+                     .tool-button { min-width: 40px; min-height: 40px; border-radius: 12px; background: transparent; }
+                     .tool-button.toggle:hover { background: rgba(255,255,255,0.10); }
+                     .tool-button.toggle:checked { background: rgba(94, 166, 255, 0.22); box-shadow: inset 0 0 0 1px rgba(125,190,255,0.80), 0 0 18px rgba(71,151,255,0.28); }
+                     .color-palette { background: rgba(18, 21, 27, 0.54); border-radius: 18px; padding: 9px; border: 1px solid rgba(255,255,255,0.13); box-shadow: 0 16px 42px rgba(0,0,0,0.34); }
+                     .color-swatch { min-width: 22px; min-height: 22px; border-radius: 999px; border: 2px solid rgba(255,255,255,0.24); box-shadow: 0 4px 12px rgba(0,0,0,0.18); }
+                     .color-swatch.toggle:checked { border: 2px solid rgba(255,255,255,0.95); box-shadow: 0 0 0 2px rgba(94,166,255,0.42); }
+                     .color-custom { min-width: 22px; min-height: 22px; border-radius: 999px; border: 2px solid rgba(255,255,255,0.34); background: rgba(255,255,255,0.10); }
                      .color-black { background: #1b1b1b; }
                      .color-white { background: #f5f5f5; }
                      .color-red { background: #ff4d4d; }
@@ -110,19 +136,22 @@ pub fn build_ui(app: &adw::Application) {
                      .color-green { background: #3ddc84; }
                      .color-blue { background: #3b82f6; }
                      .color-purple { background: #8b5cf6; }
-                     .editor-canvas { background: #1e1e1e; }
-                     .editor-status { color: #c9c9c9; font-size: 11px; }",
+                     .editor-content { background: #090b10; }
+                     .editor-scroller { background: transparent; border-radius: 16px; }
+                     .editor-canvas { background: #090b10; }
+                     .editor-status { color: #edf4ff; font-size: 11px; background: rgba(18,21,27,0.62); border-radius: 999px; padding: 5px 10px; border: 1px solid rgba(255,255,255,0.11); }",
                 );
             } else {
                 css_provider.load_from_string(
-                    ".tool-palette { background: rgba(250, 250, 250, 0.92); border-radius: 16px; padding: 10px; border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 12px 30px rgba(0,0,0,0.12); }
-                     .tool-button { min-width: 38px; min-height: 38px; border-radius: 10px; }
-                     .tool-button.toggle:hover { background: rgba(0, 0, 0, 0.06); }
-                     .tool-button.toggle:checked { background: rgba(0, 0, 0, 0.08); box-shadow: inset 0 0 0 2px rgba(0,0,0,0.35); }
-                     .color-palette { background: rgba(250, 250, 250, 0.92); border-radius: 12px; padding: 8px; border: 1px solid rgba(0,0,0,0.08); }
-                     .color-swatch { min-width: 20px; min-height: 20px; border-radius: 999px; border: 2px solid rgba(0,0,0,0.2); }
-                     .color-swatch.toggle:checked { border: 2px solid rgba(0,0,0,0.8); }
-                     .color-custom { min-width: 20px; min-height: 20px; border-radius: 999px; border: 2px solid rgba(0,0,0,0.25); background: rgba(0,0,0,0.04); }
+                    ".glass-header { background: rgba(246, 248, 252, 0.78); border-bottom: 1px solid rgba(0,0,0,0.07); box-shadow: 0 10px 28px rgba(44,62,92,0.12); }
+                     .tool-palette { background: rgba(248, 250, 255, 0.66); border-radius: 18px; padding: 10px; border: 1px solid rgba(255,255,255,0.70); box-shadow: 0 18px 46px rgba(44,62,92,0.20); }
+                     .tool-button { min-width: 40px; min-height: 40px; border-radius: 12px; background: transparent; }
+                     .tool-button.toggle:hover { background: rgba(35, 55, 85, 0.08); }
+                     .tool-button.toggle:checked { background: rgba(53, 132, 228, 0.16); box-shadow: inset 0 0 0 1px rgba(36,117,211,0.62), 0 0 18px rgba(53,132,228,0.18); }
+                     .color-palette { background: rgba(248, 250, 255, 0.66); border-radius: 18px; padding: 9px; border: 1px solid rgba(255,255,255,0.74); box-shadow: 0 16px 42px rgba(44,62,92,0.16); }
+                     .color-swatch { min-width: 22px; min-height: 22px; border-radius: 999px; border: 2px solid rgba(255,255,255,0.72); box-shadow: 0 4px 12px rgba(44,62,92,0.16); }
+                     .color-swatch.toggle:checked { border: 2px solid rgba(20,35,56,0.72); box-shadow: 0 0 0 2px rgba(53,132,228,0.30); }
+                     .color-custom { min-width: 22px; min-height: 22px; border-radius: 999px; border: 2px solid rgba(20,35,56,0.22); background: rgba(255,255,255,0.54); }
                      .color-black { background: #1b1b1b; }
                      .color-white { background: #f5f5f5; }
                      .color-red { background: #ff4d4d; }
@@ -131,8 +160,10 @@ pub fn build_ui(app: &adw::Application) {
                      .color-green { background: #3ddc84; }
                      .color-blue { background: #3b82f6; }
                      .color-purple { background: #8b5cf6; }
-                     .editor-canvas { background: #f4f4f4; }
-                     .editor-status { color: #5c5c5c; font-size: 11px; }",
+                     .editor-content { background: #eef3f9; }
+                     .editor-scroller { background: transparent; border-radius: 16px; }
+                     .editor-canvas { background: #eef3f9; }
+                     .editor-status { color: #24364f; font-size: 11px; background: rgba(248,250,255,0.72); border-radius: 999px; padding: 5px 10px; border: 1px solid rgba(255,255,255,0.74); }",
                 );
             }
             let icon_color_value = if is_dark { "#e6e6e6" } else { "#2b2b2b" };
@@ -150,8 +181,9 @@ pub fn build_ui(app: &adw::Application) {
     }
 
     let header = adw::HeaderBar::builder()
-        .title_widget(&adw::WindowTitle::new("GreatShot", ""))
+        .title_widget(&adw::WindowTitle::new("WayShot", ""))
         .build();
+    header.add_css_class("glass-header");
 
     let capture_button = gtk::Button::builder()
         .child(&create_icon(ICON_CAPTURE, &icon_images, &icon_color))
@@ -349,6 +381,7 @@ pub fn build_ui(app: &adw::Application) {
         .vscrollbar_policy(gtk::PolicyType::Automatic)
         .child(&drawing_area)
         .build();
+    scroller.add_css_class("editor-scroller");
 
     let content = gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
@@ -358,6 +391,7 @@ pub fn build_ui(app: &adw::Application) {
         .margin_start(18)
         .margin_end(18)
         .build();
+    content.add_css_class("editor-content");
 
     content.append(&status);
     content.append(&scroller);
@@ -402,9 +436,9 @@ pub fn build_ui(app: &adw::Application) {
 
     let tool_buttons: Vec<(Tool, gtk::ToggleButton)> = vec![
         (Tool::Select, make_tool_button(ICON_SELECT, "Select")),
-        (Tool::Crop, make_tool_button(ICON_CROP, "Crop")),
         (Tool::Pen, make_tool_button(ICON_PEN, "Pen")),
         (Tool::Rect, make_tool_button(ICON_RECT, "Rectangle")),
+        (Tool::Circle, make_tool_button(ICON_CIRCLE, "Circle")),
         (Tool::Line, make_tool_button(ICON_LINE, "Line")),
         (Tool::Arrow, make_tool_button(ICON_ARROW, "Arrow")),
         (Tool::Text, make_tool_button(ICON_TEXT, "Text")),
@@ -425,12 +459,11 @@ pub fn build_ui(app: &adw::Application) {
         .application(app)
         .default_width(1400)
         .default_height(900)
-        .title("GreatShot")
+        .title("WayShot")
         .content(&toolbar_view)
         .build();
 
     window.maximize();
-    window.present();
 
     let zoom_updating = Rc::new(Cell::new(false));
     let fit_updating = Rc::new(Cell::new(false));
@@ -462,6 +495,24 @@ pub fn build_ui(app: &adw::Application) {
             drawing_area.queue_draw();
         })
     };
+
+    if !initial_capture {
+        present_window(&window);
+    }
+
+    if let Some(path) = initial_image {
+        match gdk_pixbuf::Pixbuf::from_file(&path) {
+            Ok(pixbuf) => {
+                apply_background(pixbuf);
+                let msg = format!("Opened image: {}", path.display());
+                set_status(&msg);
+            }
+            Err(err) => {
+                let msg = format!("Failed to open image: {err}");
+                set_status(&msg);
+            }
+        }
+    }
 
     let (sender, receiver) = mpsc::channel::<Result<String, String>>();
 
@@ -498,47 +549,68 @@ pub fn build_ui(app: &adw::Application) {
                     set_status_for_timer(&msg);
                 }
             }
-            window_for_timer.present();
+            present_window(&window_for_timer);
         }
         glib::ControlFlow::Continue
     });
 
-    let runtime = runtime.clone();
-    let set_status_for_capture = set_status.clone();
-    let button = capture_button.clone();
-    let delay_spin = delay_spin.clone();
-    let interactive_toggle = interactive_toggle.clone();
-    let window_for_capture = window.clone();
-
-    capture_button.connect_clicked(move |_| {
-        button.set_sensitive(false);
-        set_status_for_capture("Capturing via portal...");
-        window_for_capture.minimize();
-        window_for_capture.set_visible(false);
-
+    let start_capture = Rc::new({
         let runtime = runtime.clone();
-        let sender = sender.clone();
-        let delay = delay_spin.value();
-        let interactive = interactive_toggle.is_active();
-
-        runtime.spawn(async move {
-            let hide_delay = std::time::Duration::from_millis(200);
-            tokio::time::sleep(hide_delay).await;
-            if delay > 0.0 {
-                tokio::time::sleep(std::time::Duration::from_secs_f64(delay)).await;
+        let set_status_for_capture = set_status.clone();
+        let button = capture_button.clone();
+        let delay_spin = delay_spin.clone();
+        let interactive_toggle = interactive_toggle.clone();
+        let window_for_capture = window.clone();
+        let skip_hide_once = Rc::new(Cell::new(initial_capture));
+        move || {
+            let hide_before_capture = !skip_hide_once.replace(false);
+            button.set_sensitive(false);
+            set_status_for_capture("Capturing via portal...");
+            if hide_before_capture {
+                window_for_capture.minimize();
+                window_for_capture.set_visible(false);
             }
-            let result = Screenshot::request()
-                .interactive(interactive)
-                .modal(true)
-                .send()
-                .await
-                .and_then(|request| request.response())
-                .map(|response| response.uri().to_string())
-                .map_err(|err| err.to_string());
 
-            let _ = sender.send(result);
-        });
+            let runtime = runtime.clone();
+            let sender = sender.clone();
+            let delay = delay_spin.value();
+            let interactive = interactive_toggle.is_active();
+
+            runtime.spawn(async move {
+                if hide_before_capture {
+                    let hide_delay = std::time::Duration::from_millis(200);
+                    tokio::time::sleep(hide_delay).await;
+                }
+                if delay > 0.0 {
+                    tokio::time::sleep(std::time::Duration::from_secs_f64(delay)).await;
+                }
+                let result = Screenshot::request()
+                    .interactive(interactive)
+                    .modal(true)
+                    .send()
+                    .await
+                    .and_then(|request| request.response())
+                    .map(|response| response.uri().to_string())
+                    .map_err(|err| err.to_string());
+
+                let _ = sender.send(result);
+            });
+        }
     });
+
+    {
+        let start_capture = start_capture.clone();
+        capture_button.connect_clicked(move |_| {
+            start_capture();
+        });
+    }
+
+    if initial_capture {
+        let start_capture = start_capture.clone();
+        glib::idle_add_local_once(move || {
+            start_capture();
+        });
+    }
 
     let state_for_draw = state.clone();
     let draw_area_for_draw = drawing_area.clone();
@@ -573,19 +645,8 @@ pub fn build_ui(app: &adw::Application) {
                     state.selected = editor::hit_test(&state.annotations, point);
                     if let Some(index) = state.selected {
                         state.draft = None;
-                        state.crop_rect = None;
                         state.selected_original = Some(state.annotations[index].clone());
                     }
-                }
-                Tool::Crop => {
-                    state.selected = None;
-                    state.draft = None;
-                    state.crop_rect = Some(Rect {
-                        x1: point.x,
-                        y1: point.y,
-                        x2: point.x,
-                        y2: point.y,
-                    });
                 }
                 Tool::Pen => {
                     state.draft = Some(Annotation::Pen {
@@ -596,6 +657,18 @@ pub fn build_ui(app: &adw::Application) {
                 }
                 Tool::Rect => {
                     state.draft = Some(Annotation::Rect {
+                        rect: Rect {
+                            x1: point.x,
+                            y1: point.y,
+                            x2: point.x,
+                            y2: point.y,
+                        },
+                        color: state.color,
+                        width: state.stroke_width,
+                    });
+                }
+                Tool::Circle => {
+                    state.draft = Some(Annotation::Circle {
                         rect: Rect {
                             x1: point.x,
                             y1: point.y,
@@ -638,7 +711,9 @@ pub fn build_ui(app: &adw::Application) {
         let drawing_area = drawing_area.clone();
         drag.connect_drag_update(move |_, offset_x, offset_y| {
             let mut state = state.borrow_mut();
-            let Some(start) = state.drag_start_view else { return; };
+            let Some(start) = state.drag_start_view else {
+                return;
+            };
             let current_view = Point {
                 x: start.x + offset_x,
                 y: start.y + offset_y,
@@ -657,17 +732,15 @@ pub fn build_ui(app: &adw::Application) {
                         }
                     }
                 }
-                Tool::Crop => {
-                    if let Some(rect) = state.crop_rect.as_mut() {
-                        rect.x2 = current.x;
-                        rect.y2 = current.y;
-                    }
-                }
                 _ => match state.draft.as_mut() {
                     Some(Annotation::Pen { points, .. }) => {
                         points.push(current);
                     }
                     Some(Annotation::Rect { rect, .. }) => {
+                        rect.x2 = current.x;
+                        rect.y2 = current.y;
+                    }
+                    Some(Annotation::Circle { rect, .. }) => {
                         rect.x2 = current.x;
                         rect.y2 = current.y;
                     }
@@ -687,13 +760,7 @@ pub fn build_ui(app: &adw::Application) {
     {
         let state = state.clone();
         let drawing_area = drawing_area.clone();
-        let fit_toggle = fit_toggle.clone();
-        let fit_updating = fit_updating.clone();
-        let zoom_adjustment = zoom_adjustment.clone();
-        let zoom_updating = zoom_updating.clone();
         drag.connect_drag_end(move |_, offset_x, offset_y| {
-            let mut did_crop = false;
-            let mut new_size = None;
             {
                 let mut state = state.borrow_mut();
                 if let Some(start) = state.drag_start_view.take() {
@@ -706,24 +773,15 @@ pub fn build_ui(app: &adw::Application) {
                         Tool::Select => {
                             state.selected_original = None;
                         }
-                        Tool::Crop => {
-                            if let Some(rect) = state.crop_rect {
-                                if editor::apply_crop(&mut state, rect) {
-                                    state.fit_to_window = true;
-                                    state.zoom = 1.0;
-                                    did_crop = true;
-                                    new_size = state
-                                        .background
-                                        .as_ref()
-                                        .map(|p| (p.width(), p.height()));
-                                }
-                            }
-                        }
                         _ => {
                             if let Some(mut draft) = state.draft.take() {
                                 match &mut draft {
                                     Annotation::Line { end: line_end, .. } => *line_end = end,
                                     Annotation::Rect { rect, .. } => {
+                                        rect.x2 = end.x;
+                                        rect.y2 = end.y;
+                                    }
+                                    Annotation::Circle { rect, .. } => {
                                         rect.x2 = end.x;
                                         rect.y2 = end.y;
                                     }
@@ -741,18 +799,6 @@ pub fn build_ui(app: &adw::Application) {
                         }
                     }
                 }
-            }
-            if did_crop {
-                if let Some((width, height)) = new_size {
-                    drawing_area.set_content_width(width);
-                    drawing_area.set_content_height(height);
-                }
-                fit_updating.set(true);
-                fit_toggle.set_active(true);
-                fit_updating.set(false);
-                zoom_updating.set(true);
-                zoom_adjustment.set_value(1.0);
-                zoom_updating.set(false);
             }
             drawing_area.queue_draw();
         });
@@ -814,7 +860,6 @@ pub fn build_ui(app: &adw::Application) {
                 let mut state = state.borrow_mut();
                 state.tool = tool;
                 state.draft = None;
-                state.crop_rect = None;
                 state.selected = None;
                 state.selected_original = None;
             });
@@ -925,19 +970,78 @@ pub fn build_ui(app: &adw::Application) {
     {
         let state = state.clone();
         let set_status = set_status.clone();
-        copy_button.connect_clicked(move |_| {
+        let set_status_for_render = set_status.clone();
+        let render_for_copy = Rc::new(move || {
             let state = state.borrow();
             let Some(pixbuf) = editor::render_to_pixbuf(&state) else {
-                set_status("Nothing to copy yet.");
-                return;
+                set_status_for_render("Nothing to copy yet.");
+                return None;
             };
-            let texture = gdk::Texture::for_pixbuf(&pixbuf);
-            if let Some(display) = gdk::Display::default() {
-                display.clipboard().set_texture(&texture);
-                set_status("Copied to clipboard.");
-            } else {
-                set_status("Clipboard unavailable.");
+            Some(pixbuf)
+        });
+        let copy_to_gtk_clipboard = Rc::new({
+            let set_status = set_status.clone();
+            move |pixbuf: &Pixbuf| {
+                let texture = gdk::Texture::for_pixbuf(pixbuf);
+                if let Some(display) = gdk::Display::default() {
+                    display.clipboard().set_texture(&texture);
+                    set_status("Copied to clipboard.");
+                    true
+                } else {
+                    set_status("Clipboard unavailable.");
+                    false
+                }
             }
+        });
+
+        let copy_for_button = {
+            let render_for_copy = render_for_copy.clone();
+            let copy_to_gtk_clipboard = copy_to_gtk_clipboard.clone();
+            move || {
+                if let Some(pixbuf) = render_for_copy() {
+                    copy_to_gtk_clipboard(&pixbuf);
+                }
+            }
+        };
+
+        let copy_for_close = {
+            let render_for_copy = render_for_copy.clone();
+            let copy_to_gtk_clipboard = copy_to_gtk_clipboard.clone();
+            let set_status = set_status.clone();
+            move || {
+                let Some(pixbuf) = render_for_copy() else {
+                    return false;
+                };
+                match copy_png_with_wl_copy(&pixbuf) {
+                    Ok(()) => true,
+                    Err(err) => {
+                        copy_to_gtk_clipboard(&pixbuf);
+                        let msg = format!("Copied, but keep WayShot open: {err}");
+                        set_status(&msg);
+                        false
+                    }
+                }
+            }
+        };
+
+        let copy_for_button = Rc::new(copy_for_button);
+        let copy_for_close = Rc::new(copy_for_close);
+
+        let copy_action = gio::SimpleAction::new("copy", None);
+        {
+            let copy_for_close = copy_for_close.clone();
+            let window = window.clone();
+            copy_action.connect_activate(move |_, _| {
+                if copy_for_close() {
+                    window.close();
+                }
+            });
+        }
+        window.add_action(&copy_action);
+        app.set_accels_for_action("win.copy", &["<Control>c"]);
+
+        copy_button.connect_clicked(move |_| {
+            copy_for_button();
         });
     }
 
@@ -950,8 +1054,10 @@ pub fn build_ui(app: &adw::Application) {
         open_button.connect_clicked(move |_| {
             let apply_background = apply_background.clone();
             let set_status = set_status.clone();
-            file_dialog.open(Some(&window), None::<&gio::Cancellable>, move |res| {
-                match res {
+            file_dialog.open(
+                Some(&window),
+                None::<&gio::Cancellable>,
+                move |res| match res {
                     Ok(file) => match file.path() {
                         Some(path) => match gdk_pixbuf::Pixbuf::from_file(path) {
                             Ok(pixbuf) => {
@@ -969,8 +1075,8 @@ pub fn build_ui(app: &adw::Application) {
                         let msg = format!("Open canceled: {err}");
                         set_status(&msg);
                     }
-                }
-            });
+                },
+            );
         });
     }
 
@@ -978,31 +1084,31 @@ pub fn build_ui(app: &adw::Application) {
         let set_status = set_status.clone();
         let apply_background = apply_background.clone();
         paste_button.connect_clicked(move |_| {
-            let Some(display) = gdk::Display::default() else {
-                set_status("Clipboard unavailable.");
-                return;
-            };
-            let clipboard = display.clipboard();
-            clipboard.read_texture_async(None::<&gio::Cancellable>, {
-                let set_status = set_status.clone();
-                let apply_background = apply_background.clone();
-                move |res| match res {
-                    Ok(Some(texture)) => {
-                        #[allow(deprecated)]
-                        if let Some(pixbuf) = gdk::pixbuf_get_from_texture(&texture) {
-                            apply_background(pixbuf);
-                            set_status("Pasted from clipboard.");
-                        } else {
-                            set_status("Clipboard image unavailable.");
+            if let Some(display) = gdk::Display::default() {
+                let clipboard = display.clipboard();
+                clipboard.read_texture_async(None::<&gio::Cancellable>, {
+                    let set_status = set_status.clone();
+                    let apply_background = apply_background.clone();
+                    move |res| match res {
+                        Ok(Some(texture)) => {
+                            #[allow(deprecated)]
+                            if let Some(pixbuf) = gdk::pixbuf_get_from_texture(&texture) {
+                                apply_background(pixbuf);
+                                set_status("Pasted from clipboard.");
+                            } else {
+                                set_status("Clipboard image unavailable.");
+                            }
+                        }
+                        Ok(None) => set_status("Clipboard has no image."),
+                        Err(err) => {
+                            let msg = format!("Paste failed: {err}");
+                            set_status(&msg);
                         }
                     }
-                    Ok(None) => set_status("Clipboard has no image."),
-                    Err(err) => {
-                        let msg = format!("Paste failed: {err}");
-                        set_status(&msg);
-                    }
-                }
-            });
+                });
+            } else {
+                set_status("Clipboard unavailable.");
+            }
         });
     }
 
@@ -1019,8 +1125,10 @@ pub fn build_ui(app: &adw::Application) {
             };
             let texture = gdk::Texture::for_pixbuf(&pixbuf);
             let set_status = set_status.clone();
-            file_dialog.save(Some(&window), None::<&gio::Cancellable>, move |res| {
-                match res {
+            file_dialog.save(
+                Some(&window),
+                None::<&gio::Cancellable>,
+                move |res| match res {
                     Ok(file) => match file.path() {
                         Some(mut path) => {
                             if path.extension().is_none() {
@@ -1040,8 +1148,8 @@ pub fn build_ui(app: &adw::Application) {
                         let msg = format!("Save canceled: {err}");
                         set_status(&msg);
                     }
-                }
-            });
+                },
+            );
         });
     }
 

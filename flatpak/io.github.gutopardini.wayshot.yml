@@ -1,0 +1,33 @@
+app-id: io.github.gutopardini.wayshot
+runtime: org.gnome.Platform
+runtime-version: '48'
+sdk: org.gnome.Sdk
+command: wayshot
+
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --talk-name=org.freedesktop.portal.Desktop
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/wayshot/cargo
+
+modules:
+  - name: wayshot
+    buildsystem: simple
+    sources:
+      - type: git
+        url: https://github.com/gutopardini/wayshot.git
+        branch: main
+      - cargo-sources.json
+    build-commands:
+      - cargo build --release --locked
+      - install -Dm755 target/release/wayshot /app/bin/wayshot
+      - install -Dm644 data/io.github.gutopardini.wayshot.desktop /app/share/applications/io.github.gutopardini.wayshot.desktop
+      - install -Dm644 data/io.github.gutopardini.wayshot.metainfo.xml /app/share/metainfo/io.github.gutopardini.wayshot.metainfo.xml
+      - install -Dm644 data/icons/hicolor/scalable/apps/io.github.gutopardini.wayshot.svg /app/share/icons/hicolor/scalable/apps/io.github.gutopardini.wayshot.svg

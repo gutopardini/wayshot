@@ -1,7 +1,7 @@
+use gdk_pixbuf::Pixbuf;
 use gtk::cairo;
 use gtk::gdk;
 use gtk::gdk::prelude::GdkCairoContextExt;
-use gdk_pixbuf::Pixbuf;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Point {
@@ -39,6 +39,11 @@ pub enum Annotation {
         color: gdk::RGBA,
         width: f64,
     },
+    Circle {
+        rect: Rect,
+        color: gdk::RGBA,
+        width: f64,
+    },
     Line {
         start: Point,
         end: Point,
@@ -63,11 +68,11 @@ pub enum Tool {
     Select,
     Pen,
     Rect,
+    Circle,
     Line,
     Arrow,
     Text,
     Blur,
-    Crop,
 }
 
 pub struct EditorState {
@@ -86,7 +91,6 @@ pub struct EditorState {
     pub zoom: f64,
     pub selected: Option<usize>,
     pub selected_original: Option<Annotation>,
-    pub crop_rect: Option<Rect>,
 }
 
 impl EditorState {
@@ -108,7 +112,6 @@ impl EditorState {
             zoom: 1.0,
             selected: None,
             selected_original: None,
-            crop_rect: None,
         }
     }
 
@@ -120,7 +123,6 @@ impl EditorState {
         self.drag_start_view = None;
         self.selected = None;
         self.selected_original = None;
-        self.crop_rect = None;
     }
 
     pub fn push_annotation(&mut self, annotation: Annotation) {
@@ -143,6 +145,7 @@ impl EditorState {
 
 pub fn draw(state: &EditorState, ctx: &cairo::Context) {
     let (scale, offset_x, offset_y) = view_transform(state);
+    draw_backdrop(state, ctx, scale, offset_x, offset_y);
     let _ = ctx.save();
     ctx.translate(offset_x, offset_y);
     ctx.scale(scale, scale);
@@ -152,22 +155,8 @@ pub fn draw(state: &EditorState, ctx: &cairo::Context) {
         let _ = ctx.paint();
     }
 
-    for annotation in state
-        .annotations
-        .iter()
-        .chain(state.draft.iter())
-    {
+    for annotation in state.annotations.iter().chain(state.draft.iter()) {
         draw_annotation(ctx, annotation, state.background.as_ref());
-    }
-
-    if let Some(rect) = state.crop_rect {
-        let (x, y, w, h) = rect.normalized();
-        let _ = ctx.save();
-        ctx.set_source_rgba(1.0, 1.0, 1.0, 0.5);
-        ctx.set_line_width(1.0);
-        ctx.rectangle(x, y, w, h);
-        let _ = ctx.stroke();
-        let _ = ctx.restore();
     }
 
     if let Some(index) = state.selected {
@@ -184,13 +173,118 @@ pub fn draw(state: &EditorState, ctx: &cairo::Context) {
     let _ = ctx.restore();
 }
 
+fn draw_backdrop(
+    state: &EditorState,
+    ctx: &cairo::Context,
+    scale: f64,
+    offset_x: f64,
+    offset_y: f64,
+) {
+    let width = state.viewport_width.max(1) as f64;
+    let height = state.viewport_height.max(1) as f64;
+
+    let _ = ctx.save();
+    ctx.set_source_rgb(0.035, 0.045, 0.065);
+    ctx.rectangle(0.0, 0.0, width, height);
+    let _ = ctx.fill();
+
+    if let Some(background) = state.background.as_ref() {
+        let image_w = background.width().max(1) as f64;
+        let image_h = background.height().max(1) as f64;
+        let cover_scale = (width / image_w).max(height / image_h).max(0.01);
+        let cover_w = image_w * cover_scale;
+        let cover_h = image_h * cover_scale;
+        let cover_x = (width - cover_w) / 2.0;
+        let cover_y = (height - cover_h) / 2.0;
+
+        let _ = ctx.save();
+        ctx.translate(cover_x, cover_y);
+        ctx.scale(cover_scale, cover_scale);
+        ctx.set_source_pixbuf(background, 0.0, 0.0);
+        let _ = ctx.paint_with_alpha(0.24);
+        let _ = ctx.restore();
+
+        ctx.set_source_rgba(0.02, 0.03, 0.05, 0.56);
+        ctx.rectangle(0.0, 0.0, width, height);
+        let _ = ctx.fill();
+
+        let image_frame_w = image_w * scale;
+        let image_frame_h = image_h * scale;
+        for step in (1..=7).rev() {
+            let spread = step as f64 * 5.0;
+            let alpha = 0.018 * step as f64;
+            ctx.set_source_rgba(0.0, 0.0, 0.0, alpha);
+            rounded_rect(
+                ctx,
+                offset_x - spread,
+                offset_y - spread,
+                image_frame_w + spread * 2.0,
+                image_frame_h + spread * 2.0,
+                18.0 + spread,
+            );
+            let _ = ctx.fill();
+        }
+
+        ctx.set_source_rgba(1.0, 1.0, 1.0, 0.12);
+        rounded_rect(
+            ctx,
+            offset_x - 1.0,
+            offset_y - 1.0,
+            image_frame_w + 2.0,
+            image_frame_h + 2.0,
+            12.0,
+        );
+        let _ = ctx.stroke();
+    }
+
+    let _ = ctx.restore();
+}
+
+fn rounded_rect(ctx: &cairo::Context, x: f64, y: f64, width: f64, height: f64, radius: f64) {
+    let radius = radius.min(width / 2.0).min(height / 2.0).max(0.0);
+    ctx.new_sub_path();
+    ctx.arc(
+        x + width - radius,
+        y + radius,
+        radius,
+        -std::f64::consts::FRAC_PI_2,
+        0.0,
+    );
+    ctx.arc(
+        x + width - radius,
+        y + height - radius,
+        radius,
+        0.0,
+        std::f64::consts::FRAC_PI_2,
+    );
+    ctx.arc(
+        x + radius,
+        y + height - radius,
+        radius,
+        std::f64::consts::FRAC_PI_2,
+        std::f64::consts::PI,
+    );
+    ctx.arc(
+        x + radius,
+        y + radius,
+        radius,
+        std::f64::consts::PI,
+        std::f64::consts::PI * 1.5,
+    );
+    ctx.close_path();
+}
+
 pub fn render_to_pixbuf(state: &EditorState) -> Option<Pixbuf> {
     let background = state.background.as_ref()?;
     let width = background.width();
     let height = background.height();
     let surface = cairo::ImageSurface::create(cairo::Format::ARgb32, width, height).ok()?;
     let ctx = cairo::Context::new(&surface).ok()?;
-    draw(state, &ctx);
+    ctx.set_source_pixbuf(background, 0.0, 0.0);
+    let _ = ctx.paint();
+    for annotation in state.annotations.iter() {
+        draw_annotation(&ctx, annotation, Some(background));
+    }
     #[allow(deprecated)]
     gtk::gdk::pixbuf_get_from_surface(&surface, 0, 0, width, height)
 }
@@ -246,11 +340,7 @@ fn draw_annotation(ctx: &cairo::Context, annotation: &Annotation, background: Op
             let _ = ctx.stroke();
             let _ = ctx.restore();
         }
-        Annotation::Rect {
-            rect,
-            color,
-            width,
-        } => {
+        Annotation::Rect { rect, color, width } => {
             let (x, y, w, h) = rect.normalized();
             let _ = ctx.save();
             set_source_rgba(ctx, color);
@@ -258,6 +348,20 @@ fn draw_annotation(ctx: &cairo::Context, annotation: &Annotation, background: Op
             ctx.rectangle(x, y, w, h);
             let _ = ctx.stroke();
             let _ = ctx.restore();
+        }
+        Annotation::Circle { rect, color, width } => {
+            let (x, y, w, h) = rect.normalized();
+            if w < 1.0 || h < 1.0 {
+                return;
+            }
+            let _ = ctx.save();
+            set_source_rgba(ctx, color);
+            ctx.set_line_width(*width);
+            ctx.translate(x + w / 2.0, y + h / 2.0);
+            ctx.scale(w / 2.0, h / 2.0);
+            ctx.arc(0.0, 0.0, 1.0, 0.0, std::f64::consts::PI * 2.0);
+            let _ = ctx.restore();
+            let _ = ctx.stroke();
         }
         Annotation::Line {
             start,
@@ -325,13 +429,16 @@ pub fn annotation_bounds(annotation: &Annotation) -> Option<Rect> {
             }
         }
         Annotation::Rect { rect, .. } => Some(*rect),
+        Annotation::Circle { rect, .. } => Some(*rect),
         Annotation::Line { start, end, .. } => Some(Rect {
             x1: start.x,
             y1: start.y,
             x2: end.x,
             y2: end.y,
         }),
-        Annotation::Text { pos, text, size, .. } => {
+        Annotation::Text {
+            pos, text, size, ..
+        } => {
             let width = (text.len() as f64 * size * 0.6).max(1.0);
             Some(Rect {
                 x1: pos.x,
@@ -370,6 +477,12 @@ pub fn move_annotation(annotation: &mut Annotation, dx: f64, dy: f64) {
             rect.x2 += dx;
             rect.y2 += dy;
         }
+        Annotation::Circle { rect, .. } => {
+            rect.x1 += dx;
+            rect.y1 += dy;
+            rect.x2 += dx;
+            rect.y2 += dy;
+        }
         Annotation::Line { start, end, .. } => {
             start.x += dx;
             start.y += dy;
@@ -389,43 +502,7 @@ pub fn move_annotation(annotation: &mut Annotation, dx: f64, dy: f64) {
     }
 }
 
-pub fn apply_crop(state: &mut EditorState, rect: Rect) -> bool {
-    let Some(background) = state.background.as_ref() else {
-        return false;
-    };
-    let (x, y, w, h) = rect.normalized();
-    if w < 1.0 || h < 1.0 {
-        return false;
-    }
-    let max_w = background.width() as f64;
-    let max_h = background.height() as f64;
-    let x = x.max(0.0).min(max_w);
-    let y = y.max(0.0).min(max_h);
-    let w = w.min(max_w - x).max(1.0);
-    let h = h.min(max_h - y).max(1.0);
-    let cropped = Pixbuf::new_subpixbuf(
-        background,
-        x.round() as i32,
-        y.round() as i32,
-        w.round() as i32,
-        h.round() as i32,
-    );
-    state.background = Some(cropped);
-    for annotation in state.annotations.iter_mut() {
-        move_annotation(annotation, -x, -y);
-    }
-    state.draft = None;
-    state.crop_rect = None;
-    state.selected = None;
-    true
-}
-fn draw_arrow_head(
-    ctx: &cairo::Context,
-    start: Point,
-    end: Point,
-    width: f64,
-    color: &gdk::RGBA,
-) {
+fn draw_arrow_head(ctx: &cairo::Context, start: Point, end: Point, width: f64, color: &gdk::RGBA) {
     let dx = end.x - start.x;
     let dy = end.y - start.y;
     let len = (dx * dx + dy * dy).sqrt();
@@ -489,7 +566,11 @@ fn draw_pixelate(ctx: &cairo::Context, rect: Rect, pixel_size: i32, background: 
         Some(pix) => pix,
         None => return,
     };
-    let pixelated = match small.scale_simple(w.round() as i32, h.round() as i32, gdk_pixbuf::InterpType::Nearest) {
+    let pixelated = match small.scale_simple(
+        w.round() as i32,
+        h.round() as i32,
+        gdk_pixbuf::InterpType::Nearest,
+    ) {
         Some(pix) => pix,
         None => return,
     };

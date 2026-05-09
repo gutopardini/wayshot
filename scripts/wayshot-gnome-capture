@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repo_root=$(dirname "$script_dir")
+
+if [ "${WAYSHOT_BIN:-}" ]; then
+  wayshot_bin=$WAYSHOT_BIN
+elif command -v wayshot >/dev/null 2>&1; then
+  wayshot_bin=$(command -v wayshot)
+elif [ -x "$repo_root/target/debug/wayshot" ]; then
+  wayshot_bin=$repo_root/target/debug/wayshot
+elif [ -x "$repo_root/target/release/wayshot" ]; then
+  wayshot_bin=$repo_root/target/release/wayshot
+else
+  printf '%s\n' "wayshot binary not found. Run 'cargo build' or 'make install' first." >&2
+  exit 1
+fi
+
+WAYSHOT_CAPTURE=1 exec "$wayshot_bin"

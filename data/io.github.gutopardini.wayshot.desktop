@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
-Name=GreatShot
+Name=WayShot
 Comment=Wayland-first screenshot + annotation tool
-Exec=greatshot
-Icon=io.github.syed.greatshot
+Exec=wayshot %f
+Icon=io.github.gutopardini.wayshot
 Terminal=false
 Categories=Graphics;Utility;
-
+MimeType=image/png;image/jpeg;image/webp;image/bmp;image/tiff;

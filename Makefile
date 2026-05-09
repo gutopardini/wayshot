@@ -7,10 +7,11 @@ ICONDIR := $(PREFIX)/share/icons/hicolor/scalable/apps
 
 install:
 	cargo build --release
-	install -Dm755 target/release/greatshot $(BINDIR)/greatshot
-	install -Dm644 data/io.github.syed.greatshot.desktop $(APPDIR)/io.github.syed.greatshot.desktop
-	sed -i 's|^Exec=.*|Exec=$(BINDIR)/greatshot|' $(APPDIR)/io.github.syed.greatshot.desktop
-	install -Dm644 data/icons/hicolor/scalable/apps/io.github.syed.greatshot.svg $(ICONDIR)/io.github.syed.greatshot.svg
+	install -Dm755 target/release/wayshot $(BINDIR)/wayshot
+	install -Dm755 scripts/wayshot-gnome-capture $(BINDIR)/wayshot-gnome-capture
+	install -Dm644 data/io.github.gutopardini.wayshot.desktop $(APPDIR)/io.github.gutopardini.wayshot.desktop
+	sed -i 's|^Exec=.*|Exec=$(BINDIR)/wayshot %f|' $(APPDIR)/io.github.gutopardini.wayshot.desktop
+	install -Dm644 data/icons/hicolor/scalable/apps/io.github.gutopardini.wayshot.svg $(ICONDIR)/io.github.gutopardini.wayshot.svg
 	-update-desktop-database $(APPDIR)
 	@test -f $(PREFIX)/share/icons/hicolor/index.theme || printf '%s\n' \
 		'[Icon Theme]' \
