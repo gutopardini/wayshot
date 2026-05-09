@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+schema=org.gnome.settings-daemon.plugins.media-keys
+custom_schema=org.gnome.settings-daemon.plugins.media-keys.custom-keybinding
+shortcut_path=/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/wayshot/
+shortcut_name=${WAYSHOT_SHORTCUT_NAME:-WayShot}
+shortcut_binding=${WAYSHOT_SHORTCUT:-'<Shift><Super>s'}
+shortcut_command=${WAYSHOT_SHORTCUT_COMMAND:-"$HOME/.local/bin/wayshot-gnome-capture"}
+
+if ! command -v gsettings >/dev/null 2>&1; then
+  printf '%s\n' "gsettings not found. This shortcut installer only works on GNOME." >&2
+  exit 1
+fi
+
+if [ ! -x "$shortcut_command" ]; then
+  printf 'Command not found or not executable: %s\n' "$shortcut_command" >&2
+  printf '%s\n' "Run 'make install' first, or set WAYSHOT_SHORTCUT_COMMAND." >&2
+  exit 1
+fi
+
+current=$(gsettings get "$schema" custom-keybindings)
+if [[ "$current" != *"'$shortcut_path'"* ]]; then
+  if [ "$current" = "@as []" ] || [ "$current" = "[]" ]; then
+    updated="['$shortcut_path']"
+  else
+    updated="${current%]}, '$shortcut_path']"
+  fi
+  gsettings set "$schema" custom-keybindings "$updated"
+fi
+
+gsettings set "$custom_schema:$shortcut_path" name "$shortcut_name"
+gsettings set "$custom_schema:$shortcut_path" command "$shortcut_command"
+gsettings set "$custom_schema:$shortcut_path" binding "$shortcut_binding"
+
+printf 'Installed GNOME shortcut: %s -> %s\n' "$shortcut_binding" "$shortcut_command"

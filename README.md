@@ -36,6 +36,25 @@ Build and install locally:
 make install
 ```
 
+Install the recommended GNOME shortcut:
+
+```sh
+make install-shortcut
+```
+
+The shortcut installer registers:
+
+```text
+Shortcut: Super+Shift+S
+Command: ~/.local/bin/wayshot-gnome-capture
+```
+
+To choose another keybinding:
+
+```sh
+WAYSHOT_SHORTCUT='<Primary><Shift>s' make install-shortcut
+```
+
 This installs:
 
 ```text
@@ -67,11 +86,11 @@ Run the app normally:
 wayshot
 ```
 
-Recommended GNOME shortcut:
+Recommended GNOME shortcut, if you prefer setting it manually:
 
 ```text
 Command: wayshot-gnome-capture
-Shortcut: choose your preferred keybinding
+Shortcut: Super+Shift+S
 ```
 
 ## Editor Workflow

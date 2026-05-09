@@ -1,4 +1,4 @@
-.PHONY: install
+.PHONY: install install-shortcut
 
 PREFIX ?= $(HOME)/.local
 BINDIR := $(PREFIX)/bin
@@ -27,3 +27,6 @@ install:
 		'Context=Applications' \
 		> $(PREFIX)/share/icons/hicolor/index.theme
 	-gtk-update-icon-cache $(PREFIX)/share/icons/hicolor
+
+install-shortcut:
+	scripts/install-gnome-shortcut
