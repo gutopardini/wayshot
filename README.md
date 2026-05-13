@@ -26,12 +26,19 @@ It is designed for the common “capture, mark, copy, paste” loop:
 - Save the final image as PNG.
 - Glass-style editor UI with image backdrop.
 
-## Install
+## Native Install
 
 Fedora dependencies:
 
 ```sh
 sudo dnf install rust cargo gtk4-devel libadwaita-devel pkgconf-pkg-config gcc wl-clipboard
+```
+
+Ubuntu dependencies:
+
+```sh
+sudo apt update
+sudo apt install rustc cargo libgtk-4-dev libadwaita-1-dev pkg-config gcc wl-clipboard
 ```
 
 Build and install locally:
