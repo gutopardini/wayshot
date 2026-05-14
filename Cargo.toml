@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 adw = { package = "libadwaita", version = "0.8.1", features = ["v1_5", "gtk_v4_6"] }
-gtk = { package = "gtk4", version = "0.10.3", features = ["gnome_48"] }
+gtk = { package = "gtk4", version = "0.10.3", features = ["gnome_46"] }
 ashpd = { version = "0.12.0", features = ["gtk4"] }
 tokio = { version = "1.43.0", features = ["rt-multi-thread"] }
 gdk-pixbuf = "0.21.5"

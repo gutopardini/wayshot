@@ -1,6 +1,6 @@
 app-id: io.github.gutopardini.wayshot
 runtime: org.gnome.Platform
-runtime-version: '48'
+runtime-version: '49'
 sdk: org.gnome.Sdk
 command: wayshot
 
@@ -31,5 +31,5 @@ modules:
       - install -Dm644 data/io.github.gutopardini.wayshot.desktop /app/share/applications/io.github.gutopardini.wayshot.desktop
       - install -Dm644 data/io.github.gutopardini.wayshot.metainfo.xml /app/share/metainfo/io.github.gutopardini.wayshot.metainfo.xml
       - install -Dm644 assets/icons/wayshot-icon.svg /app/share/icons/hicolor/scalable/apps/io.github.gutopardini.wayshot.svg
+      - install -Dm644 assets/app-icons/256x256/apps/io.github.gutopardini.wayshot.png /app/share/icons/hicolor/256x256/apps/io.github.gutopardini.wayshot.png
       - install -Dm644 assets/app-icons/512x512/apps/io.github.gutopardini.wayshot.png /app/share/icons/hicolor/512x512/apps/io.github.gutopardini.wayshot.png
-      - install -Dm644 assets/app-icons/1024x1024/apps/io.github.gutopardini.wayshot.png /app/share/icons/hicolor/1024x1024/apps/io.github.gutopardini.wayshot.png
