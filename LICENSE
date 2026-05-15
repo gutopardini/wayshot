@@ -1,24 +1,41 @@
-WayShot Personal Use License
+WayShot Source-Available License
 Version 1.0
 
 Copyright (c) 2026 Guto Pardini
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to use,
-copy, modify, and distribute the Software for personal, non-commercial use,
+copy, modify, and distribute the Software, including for commercial purposes,
 subject to the following conditions:
 
-1. Non-Commercial Use Only. You may not use the Software for commercial
-   purposes without a separate commercial license. "Commercial purposes"
-   means any use intended for or directed toward commercial advantage,
-   monetary compensation, or in connection with a for-profit entity, whether
-   direct or indirect.
+1. Commercial Use Permitted.
+   You may use the Software for personal, educational, internal business,
+   professional, and commercial purposes.
 
-2. Redistribution. Any redistribution of the Software must include this
-   license text and must be limited to personal, non-commercial use.
+2. No Sale of the Software.
+   You may not sell, license, sublicense, rent, lease, or otherwise charge
+   for access to the Software as a standalone product or substantially similar
+   product.
 
-3. Commercial Licensing. Commercial use requires a paid commercial license.
-   To obtain a commercial license, contact the project maintainer via:
+3. No Paid Redistribution.
+   You may not distribute the Software, modified or unmodified, in exchange
+   for payment, subscription fees, licensing fees, or any other monetary
+   compensation.
+
+4. Permitted Commercial Integration.
+   You may use the Software as part of your internal workflows, business
+   operations, consulting work, or commercial projects, provided that the
+   Software itself is not sold, licensed, or offered as a paid product or
+   service.
+
+5. Redistribution.
+   Any redistribution of the Software must include this license text and
+   copyright notice.
+
+6. Commercial Licensing Exceptions.
+   If you want to sell, license, sublicense, bundle, or otherwise monetize
+   the Software itself, you must obtain a separate commercial license.
+   To request permission, contact the project maintainer via:
    https://github.com/gutopardini/wayshot/issues
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
