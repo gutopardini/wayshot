@@ -2,24 +2,38 @@
 <component type="desktop-application">
   <id>io.github.gutopardini.wayshot</id>
   <name>WayShot</name>
-  <summary>Screenshot and annotate with a fast, minimal workflow</summary>
+  <summary>GNOME/Wayland screenshot and annotation tool</summary>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>LicenseRef-WayShot-NonCommercial</project_license>
-  <developer_name>Guto Pardini</developer_name>
+  <project_license>MIT</project_license>
+  <developer id="io.github.gutopardini">
+    <name>Guto Pardini</name>
+  </developer>
   <description>
     <p>
       WayShot is a fast, minimal screenshot and annotation tool inspired by Flameshot.
+      It is designed and supported only for GNOME running on Wayland.
     </p>
   </description>
   <launchable type="desktop-id">io.github.gutopardini.wayshot.desktop</launchable>
   <url type="homepage">https://github.com/gutopardini/wayshot</url>
   <url type="bugtracker">https://github.com/gutopardini/wayshot/issues</url>
+  <content_rating type="oars-1.1" />
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+  <recommends>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </recommends>
   <screenshots>
     <screenshot type="default">
-      <image>https://raw.githubusercontent.com/gutopardini/wayshot/main/data/screenshots/1.png</image>
+      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.1.0/data/screenshots/1.png</image>
     </screenshot>
   </screenshots>
   <provides>
     <binary>wayshot</binary>
   </provides>
+  <releases>
+    <release version="0.1.0" date="2026-05-16" />
+  </releases>
 </component>

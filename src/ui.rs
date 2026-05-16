@@ -8,7 +8,9 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use adw::prelude::*;
+use ashpd::desktop::ResponseError;
 use ashpd::desktop::screenshot::Screenshot;
+use ashpd::{Error as PortalError, PortalError as DesktopPortalError};
 use gdk_pixbuf::Pixbuf;
 use gtk::gdk;
 use gtk::gio;
@@ -39,6 +41,30 @@ const ICON_ARROW: &[u8] = include_bytes!("../assets/icons/arrow-right.svg");
 const ICON_TEXT: &[u8] = include_bytes!("../assets/icons/text-size.svg");
 const ICON_BLUR: &[u8] = include_bytes!("../assets/icons/blur.svg");
 const ICON_APP: &[u8] = include_bytes!("../assets/icons/wayshot-icon.svg");
+
+struct CaptureFailure {
+    message: String,
+    canceled: bool,
+}
+
+struct CaptureResponse {
+    result: Result<String, CaptureFailure>,
+    close_on_cancel: bool,
+}
+
+impl From<PortalError> for CaptureFailure {
+    fn from(err: PortalError) -> Self {
+        let canceled = matches!(
+            err,
+            PortalError::Response(ResponseError::Cancelled)
+                | PortalError::Portal(DesktopPortalError::Cancelled(_))
+        );
+        Self {
+            message: err.to_string(),
+            canceled,
+        }
+    }
+}
 
 fn set_image_from_svg(image: &gtk::Image, icon: &[u8], color: &str) {
     let svg = String::from_utf8_lossy(icon).replace("#e6e6e6", color);
@@ -624,7 +650,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         }
     }
 
-    let (sender, receiver) = mpsc::channel::<Result<String, String>>();
+    let (sender, receiver) = mpsc::channel::<CaptureResponse>();
 
     let set_status_for_timer = set_status.clone();
     let button_for_timer = capture_button.clone();
@@ -632,9 +658,9 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
     let window_for_timer = window.clone();
 
     glib::timeout_add_local(Duration::from_millis(100), move || {
-        while let Ok(result) = receiver.try_recv() {
+        while let Ok(response) = receiver.try_recv() {
             button_for_timer.set_sensitive(true);
-            match result {
+            match response.result {
                 Ok(uri) => {
                     let msg = format!("Captured: {uri}");
                     set_status_for_timer(&msg);
@@ -655,7 +681,11 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                     }
                 }
                 Err(err) => {
-                    let msg = format!("Capture failed: {err}");
+                    if response.close_on_cancel && err.canceled {
+                        window_for_timer.close();
+                        continue;
+                    }
+                    let msg = format!("Capture failed: {}", err.message);
                     set_status_for_timer(&msg);
                 }
             }
@@ -673,7 +703,8 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         let window_for_capture = window.clone();
         let skip_hide_once = Rc::new(Cell::new(initial_capture));
         move || {
-            let hide_before_capture = !skip_hide_once.replace(false);
+            let close_on_cancel = skip_hide_once.replace(false);
+            let hide_before_capture = !close_on_cancel;
             button.set_sensitive(false);
             set_status_for_capture("Capturing via portal...");
             if hide_before_capture {
@@ -701,9 +732,12 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                     .await
                     .and_then(|request| request.response())
                     .map(|response| response.uri().to_string())
-                    .map_err(|err| err.to_string());
+                    .map_err(CaptureFailure::from);
 
-                let _ = sender.send(result);
+                let _ = sender.send(CaptureResponse {
+                    result,
+                    close_on_cancel,
+                });
             });
         }
     });

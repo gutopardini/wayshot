@@ -44,7 +44,3 @@ python3 -m venv .venv-flatpak-tools
 ```sh
 flatpak-builder --force-clean --install-deps-from=flathub --user --install build-flatpak flatpak/io.github.gutopardini.wayshot.yml
 ```
-
-## Submission source
-The manifest references the GitHub repo:
-- `https://github.com/gutopardini/wayshot`

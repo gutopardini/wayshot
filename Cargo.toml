@@ -2,6 +2,7 @@
 name = "wayshot"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [dependencies]
 adw = { package = "libadwaita", version = "0.8.1", features = ["v1_5", "gtk_v4_6"] }
