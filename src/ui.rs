@@ -75,9 +75,12 @@ fn set_image_from_svg(image: &gtk::Image, icon: &[u8], color: &str) {
     image.set_paintable(paintable.as_ref());
 }
 
+type IconImage = (gtk::Image, &'static [u8]);
+type IconImages = Rc<RefCell<Vec<IconImage>>>;
+
 fn create_icon(
     icon: &'static [u8],
-    icon_images: &Rc<RefCell<Vec<(gtk::Image, &'static [u8])>>>,
+    icon_images: &IconImages,
     icon_color: &Rc<RefCell<String>>,
 ) -> gtk::Image {
     let image = gtk::Image::new();
@@ -230,8 +233,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         state.zoom = 1.0;
     }
 
-    let icon_images: Rc<RefCell<Vec<(gtk::Image, &'static [u8])>>> =
-        Rc::new(RefCell::new(Vec::new()));
+    let icon_images: IconImages = Rc::new(RefCell::new(Vec::new()));
     let icon_color = Rc::new(RefCell::new(String::new()));
 
     if let Some(display) = gdk::Display::default() {
@@ -885,18 +887,18 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
             let current = editor::map_to_image(&state, current_view.x, current_view.y);
             match state.tool {
                 Tool::Select => {
-                    if let Some(index) = state.selected {
-                        if let Some(last) = state.drag_last_image {
-                            let dx = current.x - last.x;
-                            let dy = current.y - last.y;
-                            if !move_changed.get() && (dx.abs() > 0.0 || dy.abs() > 0.0) {
-                                state.record_change();
-                                move_changed.set(true);
-                            }
-                            if let Some(annotation) = state.annotations.get_mut(index) {
-                                editor::move_annotation(annotation, dx, dy);
-                                state.drag_last_image = Some(current);
-                            }
+                    if let Some(index) = state.selected
+                        && let Some(last) = state.drag_last_image
+                    {
+                        let dx = current.x - last.x;
+                        let dy = current.y - last.y;
+                        if !move_changed.get() && (dx.abs() > 0.0 || dy.abs() > 0.0) {
+                            state.record_change();
+                            move_changed.set(true);
+                        }
+                        if let Some(annotation) = state.annotations.get_mut(index) {
+                            editor::move_annotation(annotation, dx, dy);
+                            state.drag_last_image = Some(current);
                         }
                     }
                 }
@@ -1022,36 +1024,34 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                     editor_state.selected = editor::hit_test(&editor_state.annotations, pos);
                     drawing_area.queue_draw();
 
-                    if n_press == 2 {
-                        if let Some(index) = editor_state.selected {
-                            if let Some(Annotation::Text { text, .. }) =
-                                editor_state.annotations.get(index).cloned()
-                            {
-                                drop(editor_state);
-                                show_text_editor(&window, "Edit Text", Some(&text), {
-                                    let state = state.clone();
-                                    let drawing_area = drawing_area.clone();
-                                    move |new_text| {
-                                        let mut editor_state = state.borrow_mut();
-                                        let changed = matches!(
-                                            editor_state.annotations.get(index),
-                                            Some(Annotation::Text { text, .. }) if *text != new_text
-                                        );
-                                        if !changed {
-                                            return;
-                                        }
-                                        editor_state.record_change();
-                                        if let Some(Annotation::Text { text, .. }) =
-                                            editor_state.annotations.get_mut(index)
-                                        {
-                                            *text = new_text;
-                                        }
-                                        editor_state.selected = Some(index);
-                                        drawing_area.queue_draw();
-                                    }
-                                });
+                    if n_press == 2
+                        && let Some(index) = editor_state.selected
+                        && let Some(Annotation::Text { text, .. }) =
+                            editor_state.annotations.get(index).cloned()
+                    {
+                        drop(editor_state);
+                        show_text_editor(&window, "Edit Text", Some(&text), {
+                            let state = state.clone();
+                            let drawing_area = drawing_area.clone();
+                            move |new_text| {
+                                let mut editor_state = state.borrow_mut();
+                                let changed = matches!(
+                                    editor_state.annotations.get(index),
+                                    Some(Annotation::Text { text, .. }) if *text != new_text
+                                );
+                                if !changed {
+                                    return;
+                                }
+                                editor_state.record_change();
+                                if let Some(Annotation::Text { text, .. }) =
+                                    editor_state.annotations.get_mut(index)
+                                {
+                                    *text = new_text;
+                                }
+                                editor_state.selected = Some(index);
+                                drawing_area.queue_draw();
                             }
-                        }
+                        });
                     }
                 }
                 _ => {}
@@ -1223,11 +1223,11 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
             }
 
             let mut state = state.borrow_mut();
-            if let Some(index) = state.selected.take() {
-                if state.remove_annotation(index).is_some() {
-                    drawing_area.queue_draw();
-                    return glib::Propagation::Stop;
-                }
+            if let Some(index) = state.selected.take()
+                && state.remove_annotation(index).is_some()
+            {
+                drawing_area.queue_draw();
+                return glib::Propagation::Stop;
             }
 
             glib::Propagation::Proceed

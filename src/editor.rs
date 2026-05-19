@@ -220,16 +220,16 @@ pub fn draw(state: &EditorState, ctx: &cairo::Context) {
         draw_annotation(ctx, annotation, state.background.as_ref(), None);
     }
 
-    if let Some(index) = state.selected {
-        if let Some(bounds) = annotation_bounds(&state.annotations[index]) {
-            let (x, y, w, h) = bounds.normalized();
-            let _ = ctx.save();
-            ctx.set_source_rgba(0.8, 0.8, 1.0, 0.6);
-            ctx.set_line_width(1.0);
-            ctx.rectangle(x, y, w, h);
-            let _ = ctx.stroke();
-            let _ = ctx.restore();
-        }
+    if let Some(index) = state.selected
+        && let Some(bounds) = annotation_bounds(&state.annotations[index])
+    {
+        let (x, y, w, h) = bounds.normalized();
+        let _ = ctx.save();
+        ctx.set_source_rgba(0.8, 0.8, 1.0, 0.6);
+        ctx.set_line_width(1.0);
+        ctx.rectangle(x, y, w, h);
+        let _ = ctx.stroke();
+        let _ = ctx.restore();
     }
     let _ = ctx.restore();
 }
@@ -558,7 +558,7 @@ fn draw_pixelate(
 
     let _ = ctx.save();
     ctx.rectangle(x, y, w, h);
-    let _ = ctx.clip();
+    ctx.clip();
     ctx.set_source_pixbuf(&pixelated, x, y);
     let _ = ctx.paint();
     let _ = ctx.restore();
