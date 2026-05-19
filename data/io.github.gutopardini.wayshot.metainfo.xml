@@ -27,13 +27,14 @@
   </recommends>
   <screenshots>
     <screenshot type="default">
-      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.1.1/data/screenshots/1.png</image>
+      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.1.2/data/screenshots/1.png</image>
     </screenshot>
   </screenshots>
   <provides>
     <binary>wayshot</binary>
   </provides>
   <releases>
+    <release version="0.1.2" date="2026-05-19" />
     <release version="0.1.1" date="2026-05-18" />
     <release version="0.1.0" date="2026-05-16" />
   </releases>
