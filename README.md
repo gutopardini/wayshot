@@ -1,12 +1,12 @@
+<a href="https://flathub.org/apps/details/io.github.gutopardini.wayshot">
+  <img src="https://flathub.org/assets/badges/flathub-badge-en.svg" width="160px" align="right" alt="Get it on Flathub" />
+</a>
+
 <p align="center">
   <img src="assets/icons/wayshot.png" alt="WayShot" width="256">
 </p>
 
 # WayShot
-
-<a href="https://flathub.org/apps/details/io.github.gutopardini.wayshot">
-  <img src="https://flathub.org/assets/badges/flathub-badge-en.svg" width="190px" alt="Get it on Flathub" />
-</a>
 
 WayShot is a fast screenshot and annotation tool for Linux, built around a clean GNOME/Wayland workflow.
 
