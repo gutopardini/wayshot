@@ -139,6 +139,27 @@ cargo test
 
 ## Flatpak
 
+WayShot is available on Flathub:
+
+```sh
+flatpak install flathub io.github.gutopardini.wayshot
+```
+
+### Manual GNOME Shortcut (Flatpak)
+
+When installed via Flatpak, you need to manually register the keyboard shortcut in GNOME to maintain the quick capture workflow.
+
+1. Open **Settings** -> **Keyboard** -> **Keyboard Shortcuts** -> **View and Customize Shortcuts**.
+2. Scroll down and select **Custom Shortcuts**.
+3. Click **Add Shortcut** (+).
+4. Fill in the details:
+   - **Name**: `WayShot`
+   - **Command**: `flatpak run io.github.gutopardini.wayshot --capture`
+   - **Shortcut**: `Super+Shift+S` (or your preferred keybinding)
+5. Click **Add**.
+
+### Development & Build
+
 The Flatpak manifest lives at:
 
 ```text

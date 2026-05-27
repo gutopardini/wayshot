@@ -100,6 +100,9 @@ flatpak-cargo-generator Cargo.lock -o flatpak/cargo-sources.json
 flatpak-builder --force-clean --install-deps-from=flathub --user --install build-flatpak flatpak/io.github.gutopardini.wayshot.yml
 ```
 
+When installed via Flatpak, the capture command is:
+`flatpak run io.github.gutopardini.wayshot --capture`
+
 ## Verification Commands
 
 Use these for local verification:
