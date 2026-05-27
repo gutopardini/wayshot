@@ -11,6 +11,7 @@ finish-args:
   - --share=ipc
   - --socket=wayland
   - --socket=fallback-x11
+  - --device=dri
 
 build-options:
   append-path: /usr/lib/sdk/rust-stable/bin
@@ -18,6 +19,14 @@ build-options:
     CARGO_HOME: /run/build/wayshot/cargo
 
 modules:
+  - name: wl-clipboard
+    buildsystem: autotools
+    sources:
+      - type: git
+        url: https://github.com/bugaevc/wl-clipboard.git
+        tag: v2.2.1
+        commit: a679f1782299d63860a6713e795674c100789091
+
   - name: wayshot
     buildsystem: simple
     sources:
