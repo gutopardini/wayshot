@@ -1,9 +1,9 @@
-<a href="https://flathub.org/apps/details/io.github.gutopardini.wayshot">
-  <img src="https://flathub.org/assets/badges/flathub-badge-en.svg" width="160px" align="right" alt="Get it on Flathub" />
-</a>
-
 <p align="center">
   <img src="assets/icons/wayshot.png" alt="WayShot" width="256">
+  <br>
+  <a href="https://flathub.org/apps/details/io.github.gutopardini.wayshot">
+    <img src="https://flathub.org/assets/badges/flathub-badge-en.svg" width="190px" alt="Get it on Flathub" />
+  </a>
 </p>
 
 # WayShot
