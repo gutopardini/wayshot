@@ -103,6 +103,22 @@ flatpak-builder --force-clean --install-deps-from=flathub --user --install build
 When installed via Flatpak, the capture command is:
 `flatpak run io.github.gutopardini.wayshot --capture`
 
+## Flatpak Release Workflow
+
+To update the Flatpak version (e.g., on Flathub or for local builds):
+
+1. **Tag the code**: Create and push a new git tag for the main repository.
+   ```sh
+   git tag v0.1.x
+   git push origin v0.1.x
+   ```
+2. **Update Manifesto**: Edit `flatpak/io.github.gutopardini.wayshot.yml` to point to the new `tag` and its `commit` hash.
+3. **Dependency Check**: If new external tools (like `wl-copy`) are needed, add them as modules in the manifesto.
+4. **Vendoring**: If `Cargo.lock` changed, regenerate `flatpak/cargo-sources.json`:
+   ```sh
+   flatpak-cargo-generator Cargo.lock -o flatpak/cargo-sources.json
+   ```
+
 ## Verification Commands
 
 Use these for local verification:
