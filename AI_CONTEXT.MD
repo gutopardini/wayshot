@@ -121,20 +121,21 @@ To update the Flatpak version (e.g., on Flathub or for local builds):
 
 ## Verification Commands
 
-Use these for local verification:
+Use these for local verification before pushing or preparing a release:
 
 ```sh
-cargo fmt -- --check
+# Formatting: ensure no trailing spaces and standard wrapping
+cargo fmt --all -- --check
+
+# Linting: check for collapsible ifs and other common issues
+cargo clippy --all-targets -- -D warnings
+
+# Build & Test
 cargo test
 cargo build --release --locked
 ```
 
-In this Codex environment on 2026-05-08:
-
-- `rust`, `cargo`, and `rustfmt` were installed through Fedora `dnf`.
-- Native build dependencies from the README were installed through `dnf`: `gtk4-devel`, `libadwaita-devel`, and `pkgconf-pkg-config`.
-- `cargo test` passed after dependency installation. The project currently has 0 tests.
-- `cargo fmt -- --check` passes.
+If version was bumped, ensure `Cargo.lock` is synced by running `cargo check`.
 
 ## Development Guidance
 
@@ -143,6 +144,11 @@ In this Codex environment on 2026-05-08:
 - Preserve the portal-based screenshot flow; Wayland/GNOME reliability is a core project goal.
 - Prefer small, explicit changes over new abstractions. The current codebase is intentionally compact.
 - Be careful with coordinate spaces. UI event handlers receive view coordinates; stored annotations use image coordinates.
+- **Persistence:** Drawing settings (stroke width, color) must be persisted via `glib::KeyFile` in `~/.config/wayshot/settings.ini`. Update both `load_settings` and `save_settings` when adding new persistent state.
+- **Flatpak Releases:** 
+  - When updating the version, sync `Cargo.toml`, `Cargo.lock`, and `metainfo.xml`.
+  - Update the Flatpak manifest (`flatpak/io.github.gutopardini.wayshot.yml`) with the exact commit hash and tag.
+  - The commit hash in the Flathub repository manifest MUST match the final commit hash of the tag in the main repository.
 - When adding a new annotation type, update:
   - `Annotation`
   - `Tool` if it is user-selectable
