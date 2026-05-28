@@ -226,9 +226,9 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
     let runtime = Arc::new(tokio::runtime::Runtime::new().expect("Failed to start async runtime"));
 
     let state = Rc::new(RefCell::new(EditorState::new()));
+    load_settings(&state);
     {
         let mut state = state.borrow_mut();
-        state.color = gdk::RGBA::new(1.0, 0.30, 0.30, 1.0);
         state.fit_to_window = true;
         state.zoom = 1.0;
     }
@@ -362,7 +362,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         .margin_start(10)
         .margin_end(10)
         .build();
-    let size_adjustment = gtk::Adjustment::new(4.0, 1.0, 32.0, 1.0, 2.0, 0.0);
+    let size_adjustment = gtk::Adjustment::new(state.borrow().stroke_width, 1.0, 32.0, 1.0, 2.0, 0.0);
     let size_spin = gtk::SpinButton::builder()
         .adjustment(&size_adjustment)
         .climb_rate(1.0)
@@ -1137,11 +1137,16 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                     }
                 }
                 state.borrow_mut().color = color;
+                save_settings(&state);
             });
         }
 
+        let current_color = state.borrow().color;
         for (color, button) in buttons.iter() {
-            if (color.red() - 1.0).abs() < 0.001 && (color.green() - 0.30).abs() < 0.001 {
+            if (color.red() - current_color.red()).abs() < 0.01
+                && (color.green() - current_color.green()).abs() < 0.01
+                && (color.blue() - current_color.blue()).abs() < 0.01
+            {
                 button.set_active(true);
                 break;
             }
@@ -1158,6 +1163,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                 move |result| {
                     if let Ok(color) = result {
                         state.borrow_mut().color = color;
+                        save_settings(&state);
                     }
                 }
             });
@@ -1167,6 +1173,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         let state = state.clone();
         size_spin.connect_value_changed(move |spin| {
             state.borrow_mut().stroke_width = spin.value();
+            save_settings(&state);
         });
     }
     {
@@ -1509,4 +1516,39 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         });
         drawing_area.add_controller(scroll);
     }
+}
+
+fn load_settings(state: &Rc<RefCell<EditorState>>) {
+    let mut s = state.borrow_mut();
+    let config_dir = glib::user_config_dir();
+    let path = config_dir.join("wayshot").join("settings.ini");
+    let kf = glib::KeyFile::new();
+    
+    // Set default color if file doesn't exist or loading fails
+    s.color = gdk::RGBA::new(1.0, 0.30, 0.30, 1.0); // Red
+    s.stroke_width = 4.0;
+
+    if kf.load_from_file(path, glib::KeyFileFlags::NONE).is_ok() {
+        if let Ok(val) = kf.double("drawing", "stroke_width") {
+            s.stroke_width = val;
+        }
+        if let Ok(val) = kf.string("drawing", "color") {
+            if let Ok(rgba) = gdk::RGBA::parse(&val) {
+                s.color = rgba;
+            }
+        }
+    }
+}
+
+fn save_settings(state: &Rc<RefCell<EditorState>>) {
+    let s = state.borrow();
+    let config_dir = glib::user_config_dir();
+    let path_dir = config_dir.join("wayshot");
+    let _ = std::fs::create_dir_all(&path_dir);
+    let path = path_dir.join("settings.ini");
+    
+    let kf = glib::KeyFile::new();
+    kf.set_double("drawing", "stroke_width", s.stroke_width);
+    kf.set_string("drawing", "color", &s.color.to_string());
+    let _ = kf.save_to_file(path);
 }

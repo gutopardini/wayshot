@@ -34,6 +34,14 @@
     <binary>wayshot</binary>
   </provides>
   <releases>
+    <release version="0.1.4" date="2026-05-28">
+      <description>
+        <ul>
+          <li>Implement persistent drawing settings (stroke size and color)</li>
+          <li>Settings are now saved automatically and remembered across sessions</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.3" date="2026-05-27">
       <description>
         <ul>
