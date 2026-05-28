@@ -362,7 +362,8 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         .margin_start(10)
         .margin_end(10)
         .build();
-    let size_adjustment = gtk::Adjustment::new(state.borrow().stroke_width, 1.0, 32.0, 1.0, 2.0, 0.0);
+    let size_adjustment =
+        gtk::Adjustment::new(state.borrow().stroke_width, 1.0, 32.0, 1.0, 2.0, 0.0);
     let size_spin = gtk::SpinButton::builder()
         .adjustment(&size_adjustment)
         .climb_rate(1.0)
@@ -1523,7 +1524,7 @@ fn load_settings(state: &Rc<RefCell<EditorState>>) {
     let config_dir = glib::user_config_dir();
     let path = config_dir.join("wayshot").join("settings.ini");
     let kf = glib::KeyFile::new();
-    
+
     // Set default color if file doesn't exist or loading fails
     s.color = gdk::RGBA::new(1.0, 0.30, 0.30, 1.0); // Red
     s.stroke_width = 4.0;
@@ -1546,7 +1547,7 @@ fn save_settings(state: &Rc<RefCell<EditorState>>) {
     let path_dir = config_dir.join("wayshot");
     let _ = std::fs::create_dir_all(&path_dir);
     let path = path_dir.join("settings.ini");
-    
+
     let kf = glib::KeyFile::new();
     kf.set_double("drawing", "stroke_width", s.stroke_width);
     kf.set_string("drawing", "color", &s.color.to_string());
