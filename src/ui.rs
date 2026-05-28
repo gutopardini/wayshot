@@ -1533,10 +1533,8 @@ fn load_settings(state: &Rc<RefCell<EditorState>>) {
         if let Ok(val) = kf.double("drawing", "stroke_width") {
             s.stroke_width = val;
         }
-        if let Ok(val) = kf.string("drawing", "color") {
-            if let Ok(rgba) = gdk::RGBA::parse(&val) {
-                s.color = rgba;
-            }
+        if let Ok(rgba) = kf.string("drawing", "color").and_then(|val| gdk::RGBA::parse(&val)) {
+            s.color = rgba;
         }
     }
 }
