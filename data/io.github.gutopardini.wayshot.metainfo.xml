@@ -27,13 +27,25 @@
   </recommends>
   <screenshots>
     <screenshot type="default">
-      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.1.3/data/screenshots/1.png</image>
+      <caption>Main editor interface in dark mode</caption>
+      <image>https://raw.githubusercontent.com/gutopardini/wayshot/main/data/screenshots/dark.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Main editor interface in light mode</caption>
+      <image>https://raw.githubusercontent.com/gutopardini/wayshot/main/data/screenshots/light.png</image>
     </screenshot>
   </screenshots>
   <provides>
     <binary>wayshot</binary>
   </provides>
   <releases>
+    <release version="0.1.5" date="2026-05-29">
+      <description>
+        <ul>
+          <li>Update application screenshots for Flathub</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.4" date="2026-05-28">
       <description>
         <ul>
