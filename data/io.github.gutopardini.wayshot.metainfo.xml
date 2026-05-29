@@ -28,17 +28,24 @@
   <screenshots>
     <screenshot type="default">
       <caption>Main editor interface in dark mode</caption>
-      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.1.5/data/screenshots/dark.png</image>
+      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.1.6/data/screenshots/dark.png</image>
     </screenshot>
     <screenshot>
       <caption>Main editor interface in light mode</caption>
-      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.1.5/data/screenshots/light.png</image>
+      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.1.6/data/screenshots/light.png</image>
     </screenshot>
   </screenshots>
   <provides>
     <binary>wayshot</binary>
   </provides>
   <releases>
+    <release version="0.1.6" date="2026-05-29">
+      <description>
+        <ul>
+          <li>Fix screenshot metadata URLs for Flathub</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.5" date="2026-05-29">
       <description>
         <ul>
