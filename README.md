@@ -151,14 +151,26 @@ flatpak install flathub io.github.gutopardini.wayshot
 
 ### Manual GNOME Shortcut (Flatpak)
 
-When installed via Flatpak, you need to manually register the keyboard shortcut in GNOME to maintain the quick capture workflow.
+When installed via Flatpak, you need to register the keyboard shortcut in GNOME to maintain the quick capture workflow.
+
+#### Automated Install (Recommended)
+
+Run this command to automatically set up the `Super+Shift+S` shortcut:
+
+```sh
+curl -sSL https://raw.githubusercontent.com/gutopardini/wayshot/main/scripts/install-flatpak-shortcut | bash
+```
+
+#### Manual Setup
+
+If you prefer to do it manually:
 
 1. Open **Settings** -> **Keyboard** -> **Keyboard Shortcuts** -> **View and Customize Shortcuts**.
 2. Scroll down and select **Custom Shortcuts**.
 3. Click **Add Shortcut** (+).
 4. Fill in the details:
    - **Name**: `WayShot`
-   - **Command**: `flatpak run io.github.gutopardini.wayshot --capture`
+   - **Command**: `flatpak run --env=WAYSHOT_CAPTURE=1 io.github.gutopardini.wayshot`
    - **Shortcut**: `Super+Shift+S` (or your preferred keybinding)
 5. Click **Add**.
 

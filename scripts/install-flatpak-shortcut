@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# WayShot Flatpak Shortcut Installer for GNOME
+# This script automates the creation of a keyboard shortcut to trigger WayShot's capture mode.
+
+APP_ID="io.github.gutopardini.wayshot"
+SHORTCUT_NAME="WayShot (Flatpak)"
+SHORTCUT_COMMAND="flatpak run --env=WAYSHOT_CAPTURE=1 $APP_ID"
+SHORTCUT_BINDING="<Shift><Super>s"
+SHORTCUT_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/wayshot-flatpak/"
+
+# Check if gsettings is available
+if ! command -v gsettings >/dev/null 2>&1; then
+    echo "Error: gsettings not found. This script only works on GNOME." >&2
+    exit 1
+fi
+
+# Check if WayShot Flatpak is installed
+if ! flatpak info "$APP_ID" >/dev/null 2>&1; then
+    echo "Warning: WayShot Flatpak ($APP_ID) not found. Please install it first:"
+    echo "flatpak install flathub $APP_ID"
+fi
+
+# Get current custom keybindings
+SCHEMA="org.gnome.settings-daemon.plugins.media-keys"
+CUSTOM_SCHEMA="org.gnome.settings-daemon.plugins.media-keys.custom-keybinding"
+
+current_bindings=$(gsettings get "$SCHEMA" custom-keybindings)
+
+# Add our path if it's not already there
+if [[ "$current_bindings" != *"$SHORTCUT_PATH"* ]]; then
+    if [ "$current_bindings" == "@as []" ] || [ "$current_bindings" == "[]" ]; then
+        new_bindings="['$SHORTCUT_PATH']"
+    else
+        # Remove the closing bracket and add the new path
+        new_bindings="${current_bindings%]}, '$SHORTCUT_PATH']"
+    fi
+    gsettings set "$SCHEMA" custom-keybindings "$new_bindings"
+fi
+
+# Configure the shortcut details
+gsettings set "$CUSTOM_SCHEMA:$SHORTCUT_PATH" name "$SHORTCUT_NAME"
+gsettings set "$CUSTOM_SCHEMA:$SHORTCUT_PATH" command "$SHORTCUT_COMMAND"
+gsettings set "$CUSTOM_SCHEMA:$SHORTCUT_PATH" binding "$SHORTCUT_BINDING"
+
+echo "Success! GNOME shortcut installed:"
+echo "  Name: $SHORTCUT_NAME"
+echo "  Command: $SHORTCUT_COMMAND"
+echo "  Binding: $SHORTCUT_BINDING"
+echo "You can now use $SHORTCUT_BINDING to take screenshots."
