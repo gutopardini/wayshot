@@ -44,3 +44,13 @@ python3 -m venv .venv-flatpak-tools
 ```sh
 flatpak-builder --force-clean --install-deps-from=flathub --user --install build-flatpak flatpak/io.github.gutopardini.wayshot.yml
 ```
+
+## GNOME shortcut
+
+Use the environment variable for capture-first mode:
+
+```sh
+flatpak run --env=WAYSHOT_CAPTURE=1 io.github.gutopardini.wayshot
+```
+
+Flatpak can add a small cold-start delay before the screenshot portal appears.

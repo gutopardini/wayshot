@@ -10,6 +10,7 @@ use std::time::Duration;
 use adw::prelude::*;
 use ashpd::desktop::ResponseError;
 use ashpd::desktop::screenshot::Screenshot;
+use ashpd::WindowIdentifier;
 use ashpd::{Error as PortalError, PortalError as DesktopPortalError};
 use gdk_pixbuf::Pixbuf;
 use gtk::gdk;
@@ -41,6 +42,7 @@ const ICON_ARROW: &[u8] = include_bytes!("../assets/icons/arrow-right.svg");
 const ICON_TEXT: &[u8] = include_bytes!("../assets/icons/text-size.svg");
 const ICON_BLUR: &[u8] = include_bytes!("../assets/icons/blur.svg");
 const ICON_APP: &[u8] = include_bytes!("../assets/icons/wayshot-icon.svg");
+const CAPTURE_RESPONSE_POLL_INTERVAL: Duration = Duration::from_millis(16);
 
 struct CaptureFailure {
     message: String,
@@ -124,8 +126,7 @@ fn create_app_title() -> gtk::Box {
 fn present_window(window: &adw::ApplicationWindow) {
     window.set_visible(true);
     window.unminimize();
-    #[allow(deprecated)]
-    window.present_with_time(gdk::CURRENT_TIME);
+    window.present();
 }
 
 fn show_text_editor(
@@ -660,7 +661,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
     let apply_background_for_timer = apply_background.clone();
     let window_for_timer = window.clone();
 
-    glib::timeout_add_local(Duration::from_millis(100), move || {
+    glib::timeout_add_local(CAPTURE_RESPONSE_POLL_INTERVAL, move || {
         while let Ok(response) = receiver.try_recv() {
             button_for_timer.set_sensitive(true);
             match response.result {
@@ -710,36 +711,47 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
             let hide_before_capture = !close_on_cancel;
             button.set_sensitive(false);
             set_status_for_capture("Capturing via portal...");
-            if hide_before_capture {
-                window_for_capture.minimize();
-                window_for_capture.set_visible(false);
-            }
 
             let runtime = runtime.clone();
             let sender = sender.clone();
             let delay = delay_spin.value();
             let interactive = interactive_toggle.is_active();
+            let window_for_identifier = window_for_capture.clone();
+            let window_for_hide = window_for_capture.clone();
 
-            runtime.spawn(async move {
+            glib::MainContext::default().spawn_local(async move {
+                let identifier = if hide_before_capture {
+                    WindowIdentifier::from_native(&window_for_identifier).await
+                } else {
+                    None
+                };
+
                 if hide_before_capture {
-                    let hide_delay = std::time::Duration::from_millis(200);
-                    tokio::time::sleep(hide_delay).await;
+                    window_for_hide.set_visible(false);
                 }
-                if delay > 0.0 {
-                    tokio::time::sleep(std::time::Duration::from_secs_f64(delay)).await;
-                }
-                let result = Screenshot::request()
-                    .interactive(interactive)
-                    .modal(true)
-                    .send()
-                    .await
-                    .and_then(|request| request.response())
-                    .map(|response| response.uri().to_string())
-                    .map_err(CaptureFailure::from);
 
-                let _ = sender.send(CaptureResponse {
-                    result,
-                    close_on_cancel,
+                runtime.spawn(async move {
+                    if hide_before_capture {
+                        let hide_delay = std::time::Duration::from_millis(200);
+                        tokio::time::sleep(hide_delay).await;
+                    }
+                    if delay > 0.0 {
+                        tokio::time::sleep(std::time::Duration::from_secs_f64(delay)).await;
+                    }
+                    let result = Screenshot::request()
+                        .identifier(identifier)
+                        .interactive(interactive)
+                        .modal(true)
+                        .send()
+                        .await
+                        .and_then(|request| request.response())
+                        .map(|response| response.uri().to_string())
+                        .map_err(CaptureFailure::from);
+
+                    let _ = sender.send(CaptureResponse {
+                        result,
+                        close_on_cancel,
+                    });
                 });
             });
         }
@@ -753,10 +765,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
     }
 
     if initial_capture {
-        let start_capture = start_capture.clone();
-        glib::idle_add_local_once(move || {
-            start_capture();
-        });
+        start_capture();
     }
 
     let state_for_draw = state.clone();

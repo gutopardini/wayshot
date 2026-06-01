@@ -30,5 +30,5 @@ fn main() {
     app.connect_activate(move |app| {
         ui::build_ui(app, initial_image.clone(), initial_capture);
     });
-    app.run();
+    app.run_with_args(&[APP_ID]);
 }

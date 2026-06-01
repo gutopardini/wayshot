@@ -20,7 +20,9 @@ build-options:
 
 modules:
   - name: wl-clipboard
-    buildsystem: autotools
+    buildsystem: meson
+    config-opts:
+      - -Dfishcompletiondir=no
     sources:
       - type: git
         url: https://github.com/bugaevc/wl-clipboard.git

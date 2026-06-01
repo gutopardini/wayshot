@@ -28,17 +28,25 @@
   <screenshots>
     <screenshot type="default">
       <caption>Main editor interface in dark mode</caption>
-      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.1.6/data/screenshots/dark.png</image>
+      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.1.7/data/screenshots/dark.png</image>
     </screenshot>
     <screenshot>
       <caption>Main editor interface in light mode</caption>
-      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.1.6/data/screenshots/light.png</image>
+      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.1.7/data/screenshots/light.png</image>
     </screenshot>
   </screenshots>
   <provides>
     <binary>wayshot</binary>
   </provides>
   <releases>
+    <release version="0.1.7" date="2026-06-01">
+      <description>
+        <ul>
+          <li>Fix capture-first startup from Flatpak and GNOME launchers</li>
+          <li>Improve screenshot portal window handling</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.6" date="2026-05-29">
       <description>
         <ul>

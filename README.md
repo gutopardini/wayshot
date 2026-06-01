@@ -152,6 +152,7 @@ flatpak install flathub io.github.gutopardini.wayshot
 ### Manual GNOME Shortcut (Flatpak)
 
 When installed via Flatpak, you need to register the keyboard shortcut in GNOME to maintain the quick capture workflow.
+Use `WAYSHOT_CAPTURE=1` for the documented capture-first shortcut so the command works consistently from GNOME and Flatpak launchers.
 
 #### Automated Install (Recommended)
 
@@ -173,6 +174,8 @@ If you prefer to do it manually:
    - **Command**: `flatpak run --env=WAYSHOT_CAPTURE=1 io.github.gutopardini.wayshot`
    - **Shortcut**: `Super+Shift+S` (or your preferred keybinding)
 5. Click **Add**.
+
+Flatpak startup can add a small delay before the GNOME screenshot portal appears, especially on cold start. Keeping WayShot installed locally or already warm in the Flatpak runtime cache usually makes the shortcut feel faster.
 
 ### Development & Build
 

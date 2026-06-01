@@ -101,13 +101,22 @@ flatpak-builder --force-clean --install-deps-from=flathub --user --install build
 ```
 
 When installed via Flatpak, the capture command is:
-`flatpak run io.github.gutopardini.wayshot --capture`
+`flatpak run --env=WAYSHOT_CAPTURE=1 io.github.gutopardini.wayshot`
+
+Document `WAYSHOT_CAPTURE=1` for Flatpak shortcuts. It is the reliable capture-first entry point for GNOME and Flatpak launchers.
 
 ## Flatpak Release Workflow
 
 To update the Flatpak version (e.g., on Flathub or for local builds):
 
-1. **Tag the code**: Create and push a new git tag for the main repository.
+1. **Branding & Versioning:** Bump version in `Cargo.toml` and add a new entry to the `<releases>` list in `data/io.github.gutopardini.wayshot.metainfo.xml`.
+2. **AppStream Screenshots:** References in `metainfo.xml` MUST use fixed tag URLs (e.g., `.../v0.1.6/...`) and never point to the `main` branch.
+3. **Tagging:** Create and push a new git tag (e.g., `v0.1.6`) for the main repository. **Tag immutability is critical:** if a fix is needed after tagging, you MUST create a new version (e.g., `v0.1.7`).
+4. **Manifest Update:**
+    - Update the `wayshot` module in `flatpak/io.github.gutopardini.wayshot.yml` to point to the new `tag` and its exact `commit` hash.
+    - **Dependency Stability:** NEVER change the `wl-clipboard` build system. It must remain `buildsystem: meson`.
+5. **Sync to Flathub:** Copy the updated `.yml` and `cargo-sources.json` to the external `flathub-wayshot` repository and submit the PR.
+
    ```sh
    git tag v0.1.x
    git push origin v0.1.x
