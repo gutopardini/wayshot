@@ -8,9 +8,9 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use adw::prelude::*;
+use ashpd::WindowIdentifier;
 use ashpd::desktop::ResponseError;
 use ashpd::desktop::screenshot::Screenshot;
-use ashpd::WindowIdentifier;
 use ashpd::{Error as PortalError, PortalError as DesktopPortalError};
 use gdk_pixbuf::Pixbuf;
 use gtk::gdk;

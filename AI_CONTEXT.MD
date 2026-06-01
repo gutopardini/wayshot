@@ -144,6 +144,10 @@ cargo test
 cargo build --release --locked
 ```
 
+Before pushing, run at least `cargo fmt --all -- --check`; CI enforces the same
+formatting check, so import ordering and rustfmt-only changes should be caught
+locally.
+
 If version was bumped, ensure `Cargo.lock` is synced by running `cargo check`.
 
 ## Development Guidance
