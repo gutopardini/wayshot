@@ -26,11 +26,10 @@ const ICON_REDO: &[u8] = include_bytes!("../assets/icons/arrow-forward-up.svg");
 const ICON_COPY: &[u8] = include_bytes!("../assets/icons/copy.svg");
 const ICON_PALETTE: &[u8] = include_bytes!("../assets/icons/palette.svg");
 const ICON_OPEN: &[u8] = include_bytes!("../assets/icons/folder-open.svg");
+const ICON_OPEN_LOCATION: &[u8] = include_bytes!("../assets/icons/folder-up.svg");
 const ICON_PASTE: &[u8] = include_bytes!("../assets/icons/clipboard.svg");
 const ICON_SAVE: &[u8] = include_bytes!("../assets/icons/device-floppy.svg");
 const ICON_SETTINGS: &[u8] = include_bytes!("../assets/icons/settings.svg");
-const ICON_CLOCK: &[u8] = include_bytes!("../assets/icons/clock.svg");
-const ICON_POINTER: &[u8] = include_bytes!("../assets/icons/pointer.svg");
 const ICON_ZOOM: &[u8] = include_bytes!("../assets/icons/zoom-in.svg");
 const ICON_SELECT: &[u8] = include_bytes!("../assets/icons/select.svg");
 const ICON_PEN: &[u8] = include_bytes!("../assets/icons/pencil.svg");
@@ -223,6 +222,310 @@ fn copy_png_with_wl_copy(pixbuf: &Pixbuf) -> Result<(), String> {
     Ok(())
 }
 
+fn theme_css(is_dark: bool) -> &'static str {
+    if is_dark {
+        r#"
+        .glass-header {
+            background: linear-gradient(90deg, rgba(6, 16, 24, 0.88), rgba(12, 20, 28, 0.80));
+            border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+            box-shadow: 0 12px 34px rgba(0, 0, 0, 0.36);
+        }
+        .header-action {
+            min-width: 38px;
+            min-height: 38px;
+            border-radius: 10px;
+            margin: 0 2px;
+        }
+        .capture-action {
+            background: #0d9488;
+            box-shadow: inset 0 0 0 1px rgba(153, 246, 228, 0.34), 0 10px 24px rgba(13, 148, 136, 0.32);
+        }
+        .export-action {
+            background: rgba(249, 115, 22, 0.18);
+            box-shadow: inset 0 0 0 1px rgba(251, 146, 60, 0.45);
+        }
+        .editor-content {
+            background: radial-gradient(circle at 18% 12%, rgba(20, 184, 166, 0.16), transparent 34%),
+                        linear-gradient(135deg, #071015, #0c1117 46%, #111827);
+        }
+        .editor-scroller {
+            background: rgba(2, 6, 12, 0.34);
+            border-radius: 16px;
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+        }
+        .editor-canvas { background: transparent; }
+        .editor-status {
+            color: #e8fffb;
+            font-size: 11px;
+            background: rgba(8, 18, 26, 0.72);
+            border-radius: 999px;
+            padding: 6px 11px;
+            border: 1px solid rgba(45, 212, 191, 0.28);
+            box-shadow: 0 10px 26px rgba(0, 0, 0, 0.26);
+        }
+        .control-dock, .empty-state, .tools-card {
+            background: rgba(8, 18, 26, 0.72);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.42);
+        }
+        .tool-palette {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            padding: 0;
+            min-width: 52px;
+        }
+        .tools-card {
+            border-radius: 16px;
+            padding: 8px;
+        }
+        .tool-button {
+            min-width: 42px;
+            min-height: 42px;
+            border-radius: 11px;
+            background: transparent;
+        }
+        .tool-button.toggle:hover { background: rgba(45, 212, 191, 0.12); }
+        .tool-button.toggle:checked {
+            background: rgba(20, 184, 166, 0.26);
+            box-shadow: inset 0 0 0 1px rgba(94, 234, 212, 0.72), 0 0 22px rgba(20, 184, 166, 0.28);
+        }
+        .settings-button {
+            background: rgba(255, 255, 255, 0.055);
+            box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.16);
+        }
+        .settings-button:hover { background: rgba(45, 212, 191, 0.12); }
+        .tool-divider { background: rgba(148, 163, 184, 0.22); margin: 4px 6px; }
+        .control-dock {
+            border-radius: 16px;
+            padding: 8px;
+        }
+        .dock-section {
+            border-radius: 12px;
+            padding: 4px 8px;
+            background: rgba(255, 255, 255, 0.045);
+        }
+        .dock-label {
+            color: #b7c9c6;
+            font-size: 10px;
+            font-weight: 700;
+        }
+        .dock-divider {
+            background: rgba(148, 163, 184, 0.20);
+            margin: 4px 2px;
+        }
+        .dock-button {
+            border-radius: 9px;
+            min-height: 30px;
+        }
+        .compact-spin {
+            min-height: 30px;
+        }
+        .color-swatch {
+            min-width: 24px;
+            min-height: 24px;
+            border-radius: 999px;
+            border: 2px solid rgba(255, 255, 255, 0.24);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+        }
+        .color-swatch.toggle:checked {
+            border: 2px solid rgba(255, 255, 255, 0.96);
+            box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.52);
+        }
+        .color-custom {
+            min-width: 26px;
+            min-height: 26px;
+            border-radius: 999px;
+            border: 2px solid rgba(255, 255, 255, 0.34);
+            background: rgba(255, 255, 255, 0.10);
+        }
+        .empty-state {
+            border-radius: 18px;
+            padding: 28px;
+            color: #e8fffb;
+        }
+        .empty-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #f8fffe;
+        }
+        .empty-subtitle {
+            font-size: 13px;
+            color: #b7c9c6;
+        }
+        .empty-primary {
+            background: #0d9488;
+            color: #ffffff;
+            border-radius: 10px;
+            padding: 8px 14px;
+        }
+        .empty-secondary {
+            border-radius: 10px;
+            padding: 8px 14px;
+        }
+        .color-black { background: #1b1b1b; }
+        .color-white { background: #f5f5f5; }
+        .color-red { background: #ff4d4d; }
+        .color-orange { background: #f97316; }
+        .color-yellow { background: #ffd93d; }
+        .color-green { background: #14b8a6; }
+        .color-blue { background: #3b82f6; }
+        .color-purple { background: #8b5cf6; }
+        "#
+    } else {
+        r#"
+        .glass-header {
+            background: linear-gradient(90deg, rgba(240, 253, 250, 0.92), rgba(248, 250, 252, 0.86));
+            border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+            box-shadow: 0 12px 34px rgba(15, 23, 42, 0.12);
+        }
+        .header-action {
+            min-width: 38px;
+            min-height: 38px;
+            border-radius: 10px;
+            margin: 0 2px;
+        }
+        .capture-action {
+            background: #0d9488;
+            box-shadow: inset 0 0 0 1px rgba(240, 253, 250, 0.50), 0 10px 24px rgba(13, 148, 136, 0.24);
+        }
+        .export-action {
+            background: rgba(249, 115, 22, 0.16);
+            box-shadow: inset 0 0 0 1px rgba(249, 115, 22, 0.32);
+        }
+        .editor-content {
+            background: radial-gradient(circle at 18% 12%, rgba(20, 184, 166, 0.18), transparent 34%),
+                        linear-gradient(135deg, #f0fdfa, #f8fafc 48%, #e2e8f0);
+        }
+        .editor-scroller {
+            background: rgba(255, 255, 255, 0.52);
+            border-radius: 16px;
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.62);
+        }
+        .editor-canvas { background: transparent; }
+        .editor-status {
+            color: #134e4a;
+            font-size: 11px;
+            background: rgba(240, 253, 250, 0.82);
+            border-radius: 999px;
+            padding: 6px 11px;
+            border: 1px solid rgba(20, 184, 166, 0.30);
+            box-shadow: 0 10px 26px rgba(15, 23, 42, 0.10);
+        }
+        .control-dock, .empty-state, .tools-card {
+            background: rgba(255, 255, 255, 0.72);
+            border: 1px solid rgba(255, 255, 255, 0.82);
+            box-shadow: 0 18px 50px rgba(15, 23, 42, 0.18);
+        }
+        .tool-palette {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            padding: 0;
+            min-width: 52px;
+        }
+        .tools-card {
+            border-radius: 16px;
+            padding: 8px;
+        }
+        .tool-button {
+            min-width: 42px;
+            min-height: 42px;
+            border-radius: 11px;
+            background: transparent;
+        }
+        .tool-button.toggle:hover { background: rgba(15, 118, 110, 0.10); }
+        .tool-button.toggle:checked {
+            background: rgba(13, 148, 136, 0.18);
+            box-shadow: inset 0 0 0 1px rgba(13, 148, 136, 0.58), 0 0 20px rgba(13, 148, 136, 0.18);
+        }
+        .settings-button {
+            background: rgba(15, 23, 42, 0.045);
+            box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+        }
+        .settings-button:hover { background: rgba(15, 118, 110, 0.10); }
+        .tool-divider { background: rgba(15, 23, 42, 0.12); margin: 4px 6px; }
+        .control-dock {
+            border-radius: 16px;
+            padding: 8px;
+        }
+        .dock-section {
+            border-radius: 12px;
+            padding: 4px 8px;
+            background: rgba(15, 23, 42, 0.045);
+        }
+        .dock-label {
+            color: #476663;
+            font-size: 10px;
+            font-weight: 700;
+        }
+        .dock-divider {
+            background: rgba(15, 23, 42, 0.12);
+            margin: 4px 2px;
+        }
+        .dock-button {
+            border-radius: 9px;
+            min-height: 30px;
+        }
+        .compact-spin {
+            min-height: 30px;
+        }
+        .color-swatch {
+            min-width: 24px;
+            min-height: 24px;
+            border-radius: 999px;
+            border: 2px solid rgba(255, 255, 255, 0.82);
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.14);
+        }
+        .color-swatch.toggle:checked {
+            border: 2px solid rgba(19, 78, 74, 0.78);
+            box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.34);
+        }
+        .color-custom {
+            min-width: 26px;
+            min-height: 26px;
+            border-radius: 999px;
+            border: 2px solid rgba(19, 78, 74, 0.22);
+            background: rgba(255, 255, 255, 0.62);
+        }
+        .empty-state {
+            border-radius: 18px;
+            padding: 28px;
+            color: #134e4a;
+        }
+        .empty-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #0f2f2d;
+        }
+        .empty-subtitle {
+            font-size: 13px;
+            color: #476663;
+        }
+        .empty-primary {
+            background: #0d9488;
+            color: #ffffff;
+            border-radius: 10px;
+            padding: 8px 14px;
+        }
+        .empty-secondary {
+            border-radius: 10px;
+            padding: 8px 14px;
+        }
+        .color-black { background: #1b1b1b; }
+        .color-white { background: #f5f5f5; }
+        .color-red { background: #ff4d4d; }
+        .color-orange { background: #f97316; }
+        .color-yellow { background: #ffd93d; }
+        .color-green { background: #14b8a6; }
+        .color-blue { background: #2563eb; }
+        .color-purple { background: #8b5cf6; }
+        "#
+    }
+}
+
 pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_capture: bool) {
     let runtime = Arc::new(tokio::runtime::Runtime::new().expect("Failed to start async runtime"));
 
@@ -254,56 +557,8 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         let icon_images_for_theme = icon_images.clone();
         let icon_color_for_theme = icon_color.clone();
         let apply_theme_css = move |is_dark: bool| {
-            if is_dark {
-                css_provider.load_from_string(
-                    ".glass-header { background: rgba(10, 12, 16, 0.72); border-bottom: 1px solid rgba(255,255,255,0.07); box-shadow: 0 10px 28px rgba(0,0,0,0.22); }
-                     .tool-palette { background: rgba(18, 21, 27, 0.58); border-radius: 18px; padding: 10px; border: 1px solid rgba(255,255,255,0.14); box-shadow: 0 18px 46px rgba(0,0,0,0.42); }
-                     .tool-button { min-width: 40px; min-height: 40px; border-radius: 12px; background: transparent; }
-                     .tool-button.toggle:hover { background: rgba(255,255,255,0.10); }
-                     .tool-button.toggle:checked { background: rgba(94, 166, 255, 0.22); box-shadow: inset 0 0 0 1px rgba(125,190,255,0.80), 0 0 18px rgba(71,151,255,0.28); }
-                     .color-palette { background: rgba(18, 21, 27, 0.54); border-radius: 18px; padding: 9px; border: 1px solid rgba(255,255,255,0.13); box-shadow: 0 16px 42px rgba(0,0,0,0.34); }
-                     .color-swatch { min-width: 22px; min-height: 22px; border-radius: 999px; border: 2px solid rgba(255,255,255,0.24); box-shadow: 0 4px 12px rgba(0,0,0,0.18); }
-                     .color-swatch.toggle:checked { border: 2px solid rgba(255,255,255,0.95); box-shadow: 0 0 0 2px rgba(94,166,255,0.42); }
-                     .color-custom { min-width: 22px; min-height: 22px; border-radius: 999px; border: 2px solid rgba(255,255,255,0.34); background: rgba(255,255,255,0.10); }
-                     .color-black { background: #1b1b1b; }
-                     .color-white { background: #f5f5f5; }
-                     .color-red { background: #ff4d4d; }
-                     .color-orange { background: #ff9f1a; }
-                     .color-yellow { background: #ffd93d; }
-                     .color-green { background: #3ddc84; }
-                     .color-blue { background: #3b82f6; }
-                     .color-purple { background: #8b5cf6; }
-                     .editor-content { background: #090b10; }
-                     .editor-scroller { background: transparent; border-radius: 16px; }
-                     .editor-canvas { background: #090b10; }
-                     .editor-status { color: #edf4ff; font-size: 11px; background: rgba(18,21,27,0.62); border-radius: 999px; padding: 5px 10px; border: 1px solid rgba(255,255,255,0.11); }",
-                );
-            } else {
-                css_provider.load_from_string(
-                    ".glass-header { background: rgba(246, 248, 252, 0.78); border-bottom: 1px solid rgba(0,0,0,0.07); box-shadow: 0 10px 28px rgba(44,62,92,0.12); }
-                     .tool-palette { background: rgba(248, 250, 255, 0.66); border-radius: 18px; padding: 10px; border: 1px solid rgba(255,255,255,0.70); box-shadow: 0 18px 46px rgba(44,62,92,0.20); }
-                     .tool-button { min-width: 40px; min-height: 40px; border-radius: 12px; background: transparent; }
-                     .tool-button.toggle:hover { background: rgba(35, 55, 85, 0.08); }
-                     .tool-button.toggle:checked { background: rgba(53, 132, 228, 0.16); box-shadow: inset 0 0 0 1px rgba(36,117,211,0.62), 0 0 18px rgba(53,132,228,0.18); }
-                     .color-palette { background: rgba(248, 250, 255, 0.66); border-radius: 18px; padding: 9px; border: 1px solid rgba(255,255,255,0.74); box-shadow: 0 16px 42px rgba(44,62,92,0.16); }
-                     .color-swatch { min-width: 22px; min-height: 22px; border-radius: 999px; border: 2px solid rgba(255,255,255,0.72); box-shadow: 0 4px 12px rgba(44,62,92,0.16); }
-                     .color-swatch.toggle:checked { border: 2px solid rgba(20,35,56,0.72); box-shadow: 0 0 0 2px rgba(53,132,228,0.30); }
-                     .color-custom { min-width: 22px; min-height: 22px; border-radius: 999px; border: 2px solid rgba(20,35,56,0.22); background: rgba(255,255,255,0.54); }
-                     .color-black { background: #1b1b1b; }
-                     .color-white { background: #f5f5f5; }
-                     .color-red { background: #ff4d4d; }
-                     .color-orange { background: #ff9f1a; }
-                     .color-yellow { background: #ffd93d; }
-                     .color-green { background: #3ddc84; }
-                     .color-blue { background: #3b82f6; }
-                     .color-purple { background: #8b5cf6; }
-                     .editor-content { background: #eef3f9; }
-                     .editor-scroller { background: transparent; border-radius: 16px; }
-                     .editor-canvas { background: #eef3f9; }
-                     .editor-status { color: #24364f; font-size: 11px; background: rgba(248,250,255,0.72); border-radius: 999px; padding: 5px 10px; border: 1px solid rgba(255,255,255,0.74); }",
-                );
-            }
-            let icon_color_value = if is_dark { "#e6e6e6" } else { "#2b2b2b" };
+            css_provider.load_from_string(theme_css(is_dark));
+            let icon_color_value = if is_dark { "#e8fffb" } else { "#134e4a" };
             *icon_color_for_theme.borrow_mut() = icon_color_value.to_string();
             for (image, icon) in icon_images_for_theme.borrow().iter() {
                 set_image_from_svg(image, icon, icon_color_value);
@@ -326,43 +581,30 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         .child(&create_icon(ICON_CAPTURE, &icon_images, &icon_color))
         .tooltip_text("Capture screenshot")
         .build();
+    capture_button.add_css_class("header-action");
+    capture_button.add_css_class("capture-action");
     header.pack_start(&capture_button);
 
     let open_button = gtk::Button::builder()
         .child(&create_icon(ICON_OPEN, &icon_images, &icon_color))
         .tooltip_text("Open image")
         .build();
+    open_button.add_css_class("header-action");
     let paste_button = gtk::Button::builder()
         .child(&create_icon(ICON_PASTE, &icon_images, &icon_color))
         .tooltip_text("Paste from clipboard")
         .build();
+    paste_button.add_css_class("header-action");
+    let source_folder_button = gtk::Button::builder()
+        .child(&create_icon(ICON_OPEN_LOCATION, &icon_images, &icon_color))
+        .tooltip_text("Open containing folder")
+        .build();
+    source_folder_button.add_css_class("header-action");
+    source_folder_button.set_visible(false);
     header.pack_start(&open_button);
     header.pack_start(&paste_button);
+    header.pack_start(&source_folder_button);
 
-    let delay_adjustment = gtk::Adjustment::new(0.0, 0.0, 10.0, 0.5, 1.0, 0.0);
-    let delay_spin = gtk::SpinButton::builder()
-        .adjustment(&delay_adjustment)
-        .digits(1)
-        .numeric(true)
-        .width_chars(3)
-        .tooltip_text("Capture delay (seconds)")
-        .build();
-    let interactive_toggle = gtk::Switch::builder()
-        .tooltip_text("Interactive capture")
-        .active(true)
-        .build();
-    let settings_button = gtk::MenuButton::builder()
-        .child(&create_icon(ICON_SETTINGS, &icon_images, &icon_color))
-        .tooltip_text("Capture settings")
-        .build();
-    let settings_box = gtk::Box::builder()
-        .orientation(gtk::Orientation::Vertical)
-        .spacing(10)
-        .margin_top(10)
-        .margin_bottom(10)
-        .margin_start(10)
-        .margin_end(10)
-        .build();
     let size_adjustment =
         gtk::Adjustment::new(state.borrow().stroke_width, 1.0, 32.0, 1.0, 2.0, 0.0);
     let size_spin = gtk::SpinButton::builder()
@@ -373,18 +615,21 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         .width_chars(2)
         .tooltip_text("Stroke size")
         .build();
+    size_spin.add_css_class("compact-spin");
     let zoom_adjustment = gtk::Adjustment::new(1.0, 0.25, 3.0, 0.05, 0.1, 0.0);
     let zoom_scale = gtk::Scale::builder()
         .orientation(gtk::Orientation::Horizontal)
         .adjustment(&zoom_adjustment)
         .digits(0)
         .draw_value(false)
-        .width_request(120)
+        .width_request(150)
         .tooltip_text("Zoom")
         .build();
     let fit_toggle = gtk::ToggleButton::with_label("Fit");
     fit_toggle.set_active(true);
+    fit_toggle.add_css_class("dock-button");
     let zoom_reset = gtk::Button::with_label("100%");
+    zoom_reset.add_css_class("dock-button");
     let size_row = gtk::Box::builder()
         .orientation(gtk::Orientation::Horizontal)
         .spacing(8)
@@ -392,6 +637,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
     let size_label = gtk::Label::new(Some("Stroke"));
     size_label.set_xalign(0.0);
     size_label.set_hexpand(true);
+    size_label.add_css_class("dock-label");
     size_row.append(&size_label);
     size_row.append(&size_spin);
     let size_icon = create_icon(ICON_PEN, &icon_images, &icon_color);
@@ -401,38 +647,6 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         .build();
     size_group.append(&size_icon);
     size_group.append(&size_row);
-    let delay_row = gtk::Box::builder()
-        .orientation(gtk::Orientation::Horizontal)
-        .spacing(8)
-        .build();
-    let delay_label = gtk::Label::new(Some("Delay (s)"));
-    delay_label.set_xalign(0.0);
-    delay_label.set_hexpand(true);
-    delay_row.append(&delay_label);
-    delay_row.append(&delay_spin);
-    let delay_icon = create_icon(ICON_CLOCK, &icon_images, &icon_color);
-    let delay_group = gtk::Box::builder()
-        .orientation(gtk::Orientation::Horizontal)
-        .spacing(8)
-        .build();
-    delay_group.append(&delay_icon);
-    delay_group.append(&delay_row);
-    let interactive_row = gtk::Box::builder()
-        .orientation(gtk::Orientation::Horizontal)
-        .spacing(8)
-        .build();
-    let interactive_label = gtk::Label::new(Some("Interactive"));
-    interactive_label.set_xalign(0.0);
-    interactive_label.set_hexpand(true);
-    interactive_row.append(&interactive_label);
-    interactive_row.append(&interactive_toggle);
-    let interactive_icon = create_icon(ICON_POINTER, &icon_images, &icon_color);
-    let interactive_group = gtk::Box::builder()
-        .orientation(gtk::Orientation::Horizontal)
-        .spacing(8)
-        .build();
-    interactive_group.append(&interactive_icon);
-    interactive_group.append(&interactive_row);
     let zoom_row = gtk::Box::builder()
         .orientation(gtk::Orientation::Horizontal)
         .spacing(8)
@@ -440,6 +654,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
     let zoom_label = gtk::Label::new(Some("Zoom"));
     zoom_label.set_xalign(0.0);
     zoom_label.set_hexpand(true);
+    zoom_label.add_css_class("dock-label");
     zoom_row.append(&zoom_label);
     zoom_row.append(&zoom_scale);
     let zoom_icon = create_icon(ICON_ZOOM, &icon_images, &icon_color);
@@ -455,56 +670,93 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         .build();
     zoom_actions.append(&fit_toggle);
     zoom_actions.append(&zoom_reset);
-    let divider1 = gtk::Separator::new(gtk::Orientation::Horizontal);
-    let divider2 = gtk::Separator::new(gtk::Orientation::Horizontal);
-    let divider3 = gtk::Separator::new(gtk::Orientation::Horizontal);
-    settings_box.append(&size_group);
-    settings_box.append(&divider1);
-    settings_box.append(&zoom_group);
-    settings_box.append(&divider2);
-    settings_box.append(&delay_group);
-    settings_box.append(&interactive_group);
-    settings_box.append(&divider3);
-    settings_box.append(&zoom_actions);
-    let settings_popover = gtk::Popover::new();
-    settings_popover.set_child(Some(&settings_box));
-    settings_button.set_popover(Some(&settings_popover));
-
-    header.pack_end(&settings_button);
+    for group in [&size_group, &zoom_group] {
+        group.add_css_class("dock-section");
+    }
+    zoom_actions.add_css_class("dock-section");
 
     let undo_button = gtk::Button::builder()
         .child(&create_icon(ICON_UNDO, &icon_images, &icon_color))
         .tooltip_text("Undo")
         .build();
+    undo_button.add_css_class("header-action");
     let redo_button = gtk::Button::builder()
         .child(&create_icon(ICON_REDO, &icon_images, &icon_color))
         .tooltip_text("Redo")
         .build();
+    redo_button.add_css_class("header-action");
     let copy_button = gtk::Button::builder()
         .child(&create_icon(ICON_COPY, &icon_images, &icon_color))
         .tooltip_text("Copy to clipboard")
         .build();
+    copy_button.add_css_class("header-action");
+    copy_button.add_css_class("export-action");
     let save_button = gtk::Button::builder()
         .child(&create_icon(ICON_SAVE, &icon_images, &icon_color))
         .tooltip_text("Save as PNG")
         .build();
+    save_button.add_css_class("header-action");
     header.pack_end(&copy_button);
     header.pack_end(&save_button);
     header.pack_end(&redo_button);
     header.pack_end(&undo_button);
 
-    let status = gtk::Label::builder().label("").xalign(0.0).build();
+    let status = gtk::Label::builder()
+        .label("")
+        .halign(gtk::Align::Start)
+        .xalign(0.0)
+        .build();
     status.add_css_class("editor-status");
     status.add_css_class("dim-label");
     status.set_visible(false);
 
-    let set_status = Rc::new({
+    let set_status_detail = Rc::new({
         let status = status.clone();
-        move |msg: &str| {
+        move |msg: &str, detail: Option<&str>| {
             status.set_text(msg);
             status.set_visible(!msg.is_empty());
+            status.set_tooltip_text(detail.filter(|detail| !detail.is_empty()));
         }
     });
+    let set_status = Rc::new({
+        let set_status_detail = set_status_detail.clone();
+        move |msg: &str| set_status_detail(msg, None)
+    });
+
+    let source_file = Rc::new(RefCell::new(None::<PathBuf>));
+    let set_source_file = Rc::new({
+        let source_file = source_file.clone();
+        let source_folder_button = source_folder_button.clone();
+        move |path: Option<PathBuf>| {
+            let tooltip = path
+                .as_ref()
+                .map(|path| format!("Open containing folder\n{}", path.display()));
+            *source_file.borrow_mut() = path;
+            source_folder_button.set_visible(source_file.borrow().is_some());
+            source_folder_button.set_tooltip_text(tooltip.as_deref());
+        }
+    });
+
+    {
+        let source_file = source_file.clone();
+        let set_status = set_status.clone();
+        source_folder_button.connect_clicked(move |_| {
+            let Some(path) = source_file.borrow().clone() else {
+                return;
+            };
+            let Some(parent) = path.parent() else {
+                set_status("Failed to resolve containing folder.");
+                return;
+            };
+            let folder = gio::File::for_path(parent);
+            if let Err(err) =
+                gio::AppInfo::launch_default_for_uri(&folder.uri(), None::<&gio::AppLaunchContext>)
+            {
+                let msg = format!("Failed to open containing folder: {err}");
+                set_status(&msg);
+            }
+        });
+    }
 
     let drawing_area = gtk::DrawingArea::builder()
         .content_width(900)
@@ -520,42 +772,106 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         .child(&drawing_area)
         .build();
     scroller.add_css_class("editor-scroller");
+    scroller.set_visible(false);
 
-    let content = gtk::Box::builder()
+    let editor_view = gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
-        .spacing(12)
+        .hexpand(true)
+        .vexpand(true)
         .margin_top(18)
-        .margin_bottom(18)
-        .margin_start(18)
+        .margin_bottom(3)
         .margin_end(18)
         .build();
-    content.add_css_class("editor-content");
 
-    content.append(&status);
-    content.append(&scroller);
+    editor_view.append(&scroller);
+    editor_view.append(&status);
 
-    let overlay = gtk::Overlay::new();
-    overlay.set_child(Some(&content));
+    let empty_state = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(16)
+        .halign(gtk::Align::Center)
+        .valign(gtk::Align::Center)
+        .width_request(420)
+        .build();
+    empty_state.add_css_class("empty-state");
+
+    let empty_icon = gtk::Image::new();
+    if let Ok(pixbuf) = Pixbuf::from_read(Cursor::new(ICON_APP)) {
+        let pixbuf = pixbuf.scale_simple(64, 64, gdk_pixbuf::InterpType::Bilinear);
+        let paintable = pixbuf.map(|pixbuf| gdk::Texture::for_pixbuf(&pixbuf));
+        empty_icon.set_paintable(paintable.as_ref());
+    }
+    empty_icon.set_pixel_size(64);
+
+    let empty_title = gtk::Label::builder()
+        .label("Capture. Mark. Ship.")
+        .justify(gtk::Justification::Center)
+        .wrap(true)
+        .build();
+    empty_title.add_css_class("empty-title");
+
+    let empty_subtitle = gtk::Label::builder()
+        .label("Start with a screenshot, an image file, or your clipboard.")
+        .justify(gtk::Justification::Center)
+        .wrap(true)
+        .build();
+    empty_subtitle.add_css_class("empty-subtitle");
+
+    let empty_actions = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(10)
+        .halign(gtk::Align::Center)
+        .build();
+    let empty_capture_button = gtk::Button::with_label("Capture");
+    empty_capture_button.add_css_class("empty-primary");
+    let empty_open_button = gtk::Button::with_label("Open");
+    empty_open_button.add_css_class("empty-secondary");
+    let empty_paste_button = gtk::Button::with_label("Paste");
+    empty_paste_button.add_css_class("empty-secondary");
+    empty_actions.append(&empty_capture_button);
+    empty_actions.append(&empty_open_button);
+    empty_actions.append(&empty_paste_button);
+
+    empty_state.append(&empty_icon);
+    empty_state.append(&empty_title);
+    empty_state.append(&empty_subtitle);
+    empty_state.append(&empty_actions);
 
     let palette = gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
         .spacing(6)
-        .halign(gtk::Align::End)
-        .valign(gtk::Align::End)
-        .margin_end(16)
-        .margin_bottom(16)
+        .halign(gtk::Align::Start)
+        .valign(gtk::Align::Fill)
+        .vexpand(true)
+        .margin_start(3)
+        .margin_end(3)
+        .margin_top(18)
+        .margin_bottom(3)
         .build();
     palette.add_css_class("tool-palette");
+    palette.set_visible(false);
+
+    let tools_group = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(6)
+        .valign(gtk::Align::Center)
+        .build();
+    tools_group.add_css_class("tools-card");
 
     let color_palette = gtk::Box::builder()
         .orientation(gtk::Orientation::Horizontal)
         .spacing(6)
-        .halign(gtk::Align::Start)
-        .valign(gtk::Align::End)
-        .margin_start(16)
-        .margin_bottom(16)
         .build();
-    color_palette.add_css_class("color-palette");
+    color_palette.add_css_class("dock-section");
+
+    let control_dock = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(8)
+        .halign(gtk::Align::Center)
+        .valign(gtk::Align::Center)
+        .build();
+    control_dock.add_css_class("control-dock");
+    control_dock.set_visible(false);
 
     let color_dialog = Rc::new(gtk::ColorDialog::new());
     let color_button = gtk::Button::builder()
@@ -584,12 +900,113 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         (Tool::Blur, make_tool_button(ICON_BLUR, "Blur")),
     ];
 
-    for (_, button) in tool_buttons.iter() {
-        palette.append(button);
+    for (index, (_, button)) in tool_buttons.iter().enumerate() {
+        if matches!(index, 1 | 3 | 7) {
+            let divider = gtk::Separator::new(gtk::Orientation::Horizontal);
+            divider.add_css_class("tool-divider");
+            tools_group.append(&divider);
+        }
+        tools_group.append(button);
     }
+    let tools_spacer_top = gtk::Box::builder().vexpand(true).build();
+    let tools_spacer_bottom = gtk::Box::builder().vexpand(true).build();
+    palette.append(&tools_spacer_top);
+    palette.append(&tools_group);
+    palette.append(&tools_spacer_bottom);
 
-    overlay.add_overlay(&palette);
-    overlay.add_overlay(&color_palette);
+    let settings_button = gtk::Button::builder()
+        .child(&create_icon(ICON_SETTINGS, &icon_images, &icon_color))
+        .tooltip_text("Settings")
+        .build();
+    settings_button.add_css_class("dock-button");
+    settings_button.add_css_class("settings-button");
+
+    let settings_popover = gtk::Popover::new();
+    settings_popover.set_has_arrow(false);
+    settings_popover.set_parent(&settings_button);
+    let settings_box = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(10)
+        .margin_top(12)
+        .margin_bottom(12)
+        .margin_start(12)
+        .margin_end(12)
+        .width_request(260)
+        .build();
+    let close_after_copy_row = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(12)
+        .build();
+    let close_after_copy_label = gtk::Label::builder()
+        .label("Close after Ctrl+C copy")
+        .xalign(0.0)
+        .hexpand(true)
+        .build();
+    let close_after_copy_switch = gtk::Switch::builder()
+        .active(state.borrow().close_after_copy)
+        .valign(gtk::Align::Center)
+        .build();
+    close_after_copy_row.append(&close_after_copy_label);
+    close_after_copy_row.append(&close_after_copy_switch);
+    settings_box.append(&close_after_copy_row);
+    settings_popover.set_child(Some(&settings_box));
+
+    {
+        let state = state.clone();
+        close_after_copy_switch.connect_active_notify(move |switch| {
+            state.borrow_mut().close_after_copy = switch.is_active();
+            save_settings(&state);
+        });
+    }
+    {
+        let settings_popover = settings_popover.clone();
+        settings_button.connect_clicked(move |_| {
+            settings_popover.popup();
+        });
+    }
+    let dock_divider1 = gtk::Separator::new(gtk::Orientation::Vertical);
+    dock_divider1.add_css_class("dock-divider");
+    let dock_divider2 = gtk::Separator::new(gtk::Orientation::Vertical);
+    dock_divider2.add_css_class("dock-divider");
+    let dock_divider3 = gtk::Separator::new(gtk::Orientation::Vertical);
+    dock_divider3.add_css_class("dock-divider");
+    control_dock.append(&color_palette);
+    control_dock.append(&dock_divider1);
+    control_dock.append(&size_group);
+    control_dock.append(&dock_divider2);
+    control_dock.append(&zoom_group);
+    control_dock.append(&zoom_actions);
+    control_dock.append(&dock_divider3);
+    control_dock.append(&settings_button);
+
+    let bottom_rail = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .halign(gtk::Align::Fill)
+        .valign(gtk::Align::End)
+        .margin_bottom(16)
+        .build();
+    let bottom_spacer_start = gtk::Box::builder().hexpand(true).build();
+    let bottom_spacer_end = gtk::Box::builder().hexpand(true).build();
+    bottom_rail.append(&bottom_spacer_start);
+    bottom_rail.append(&control_dock);
+    bottom_rail.append(&bottom_spacer_end);
+
+    let editor_grid = gtk::Grid::builder().hexpand(true).vexpand(true).build();
+    editor_grid.attach(&palette, 0, 0, 1, 1);
+    editor_grid.attach(&editor_view, 1, 0, 1, 1);
+    editor_grid.attach(&bottom_rail, 1, 1, 1, 1);
+
+    let content = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .hexpand(true)
+        .vexpand(true)
+        .build();
+    content.add_css_class("editor-content");
+    content.append(&editor_grid);
+
+    let overlay = gtk::Overlay::new();
+    overlay.set_child(Some(&content));
+    overlay.add_overlay(&empty_state);
 
     let toolbar_view = adw::ToolbarView::builder().content(&overlay).build();
     toolbar_view.add_top_bar(&header);
@@ -610,6 +1027,10 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
 
     let apply_background = {
         let drawing_area = drawing_area.clone();
+        let scroller = scroller.clone();
+        let empty_state = empty_state.clone();
+        let palette = palette.clone();
+        let control_dock = control_dock.clone();
         let state = state.clone();
         let zoom_adjustment = zoom_adjustment.clone();
         let fit_toggle = fit_toggle.clone();
@@ -632,6 +1053,10 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
             zoom_updating.set(true);
             zoom_adjustment.set_value(1.0);
             zoom_updating.set(false);
+            scroller.set_visible(true);
+            empty_state.set_visible(false);
+            palette.set_visible(true);
+            control_dock.set_visible(true);
             drawing_area.queue_draw();
         })
     };
@@ -644,8 +1069,8 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         match gdk_pixbuf::Pixbuf::from_file(&path) {
             Ok(pixbuf) => {
                 apply_background(pixbuf);
-                let msg = format!("Opened image: {}", path.display());
-                set_status(&msg);
+                set_source_file(Some(path));
+                set_status("");
             }
             Err(err) => {
                 let msg = format!("Failed to open image: {err}");
@@ -657,6 +1082,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
     let (sender, receiver) = mpsc::channel::<CaptureResponse>();
 
     let set_status_for_timer = set_status.clone();
+    let set_source_file_for_timer = set_source_file.clone();
     let button_for_timer = capture_button.clone();
     let apply_background_for_timer = apply_background.clone();
     let window_for_timer = window.clone();
@@ -666,13 +1092,13 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
             button_for_timer.set_sensitive(true);
             match response.result {
                 Ok(uri) => {
-                    let msg = format!("Captured: {uri}");
-                    set_status_for_timer(&msg);
                     let file = gio::File::for_uri(&uri);
                     match file.path() {
                         Some(path) => match gdk_pixbuf::Pixbuf::from_file(path) {
                             Ok(pixbuf) => {
                                 apply_background_for_timer(pixbuf);
+                                set_source_file_for_timer(file.path());
+                                set_status_for_timer("");
                             }
                             Err(err) => {
                                 let msg = format!("Failed to load image: {err}");
@@ -702,8 +1128,6 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         let runtime = runtime.clone();
         let set_status_for_capture = set_status.clone();
         let button = capture_button.clone();
-        let delay_spin = delay_spin.clone();
-        let interactive_toggle = interactive_toggle.clone();
         let window_for_capture = window.clone();
         let skip_hide_once = Rc::new(Cell::new(initial_capture));
         move || {
@@ -714,8 +1138,6 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
 
             let runtime = runtime.clone();
             let sender = sender.clone();
-            let delay = delay_spin.value();
-            let interactive = interactive_toggle.is_active();
             let window_for_identifier = window_for_capture.clone();
             let window_for_hide = window_for_capture.clone();
 
@@ -735,12 +1157,9 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                         let hide_delay = std::time::Duration::from_millis(200);
                         tokio::time::sleep(hide_delay).await;
                     }
-                    if delay > 0.0 {
-                        tokio::time::sleep(std::time::Duration::from_secs_f64(delay)).await;
-                    }
                     let result = Screenshot::request()
                         .identifier(identifier)
-                        .interactive(interactive)
+                        .interactive(true)
                         .modal(true)
                         .send()
                         .await
@@ -763,6 +1182,12 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
             start_capture();
         });
     }
+    {
+        let start_capture = start_capture.clone();
+        empty_capture_button.connect_clicked(move |_| {
+            start_capture();
+        });
+    }
 
     if initial_capture {
         start_capture();
@@ -770,17 +1195,32 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
 
     let state_for_draw = state.clone();
     let draw_area_for_draw = drawing_area.clone();
+    let scroller_for_draw = scroller.clone();
     drawing_area.set_draw_func(move |_, ctx, width, height| {
         {
             let mut state = state_for_draw.borrow_mut();
-            state.viewport_width = width;
-            state.viewport_height = height;
+            let scroller_width = scroller_for_draw.width();
+            let scroller_height = scroller_for_draw.height();
+            let viewport_width = if scroller_width > 1 {
+                scroller_width
+            } else {
+                width
+            }
+            .max(1);
+            let viewport_height = if scroller_height > 1 {
+                scroller_height
+            } else {
+                height
+            }
+            .max(1);
+            state.viewport_width = viewport_width;
+            state.viewport_height = viewport_height;
             if let Some(background) = state.background.as_ref() {
                 let (scale, _, _) = editor::view_transform(&state);
                 let scaled_w = (background.width() as f64 * scale).round() as i32;
                 let scaled_h = (background.height() as f64 * scale).round() as i32;
-                let content_w = scaled_w.max(1);
-                let content_h = scaled_h.max(1);
+                let content_w = scaled_w.max(viewport_width).max(1);
+                let content_h = scaled_h.max(viewport_height).max(1);
                 if draw_area_for_draw.content_width() != content_w {
                     draw_area_for_draw.set_content_width(content_w);
                 }
@@ -803,8 +1243,13 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         let eraser_changed = eraser_changed.clone();
         drag.connect_drag_begin(move |_, x, y| {
             let mut state = state.borrow_mut();
+            let Some(point) = editor::map_to_image_checked(&state, x, y) else {
+                state.drag_start_view = None;
+                state.drag_last_image = None;
+                state.draft = None;
+                return;
+            };
             let point_view = Point { x, y };
-            let point = editor::map_to_image(&state, x, y);
             state.drag_start_view = Some(point_view);
             state.drag_last_image = Some(point);
             move_changed.set(false);
@@ -1005,8 +1450,17 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         let window = window.clone();
         click.connect_pressed(move |_, n_press, x, y| {
             let pos = {
-                let state = state.borrow();
-                editor::map_to_image(&state, x, y)
+                let state_ref = state.borrow();
+                let Some(pos) = editor::map_to_image_checked(&state_ref, x, y) else {
+                    if matches!(state_ref.tool, Tool::Select) {
+                        drop(state_ref);
+                        let mut editor_state = state.borrow_mut();
+                        editor_state.selected = None;
+                        drawing_area.queue_draw();
+                    }
+                    return;
+                };
+                pos
             };
             let tool = state.borrow().tool;
             match tool {
@@ -1253,12 +1707,13 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
     }
 
     {
-        let state = state.clone();
+        let render_state = state.clone();
+        let copy_behavior_state = state.clone();
         let set_status = set_status.clone();
         let set_status_for_render = set_status.clone();
         let render_for_copy = Rc::new(move || {
-            let state = state.borrow();
-            let Some(pixbuf) = editor::render_to_pixbuf(&state) else {
+            let render_state = render_state.borrow();
+            let Some(pixbuf) = editor::render_to_pixbuf(&render_state) else {
                 set_status_for_render("Nothing to copy yet.");
                 return None;
             };
@@ -1292,11 +1747,16 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         let copy_for_close = {
             let render_for_copy = render_for_copy.clone();
             let copy_to_gtk_clipboard = copy_to_gtk_clipboard.clone();
+            let copy_behavior_state = copy_behavior_state.clone();
             let set_status = set_status.clone();
             move || {
                 let Some(pixbuf) = render_for_copy() else {
                     return false;
                 };
+                if !copy_behavior_state.borrow().close_after_copy {
+                    copy_to_gtk_clipboard(&pixbuf);
+                    return false;
+                }
                 match copy_png_with_wl_copy(&pixbuf) {
                     Ok(()) => true,
                     Err(err) => {
@@ -1333,68 +1793,86 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
     {
         let window = window.clone();
         let set_status = set_status.clone();
+        let set_source_file = set_source_file.clone();
         let apply_background = apply_background.clone();
         let file_dialog = gtk::FileDialog::new();
         file_dialog.set_title("Open Image");
-        open_button.connect_clicked(move |_| {
-            let apply_background = apply_background.clone();
+        for button in [open_button.clone(), empty_open_button.clone()] {
+            let window = window.clone();
             let set_status = set_status.clone();
-            file_dialog.open(
-                Some(&window),
-                None::<&gio::Cancellable>,
-                move |res| match res {
-                    Ok(file) => match file.path() {
-                        Some(path) => match gdk_pixbuf::Pixbuf::from_file(path) {
-                            Ok(pixbuf) => {
-                                apply_background(pixbuf);
-                                set_status("Opened image.");
-                            }
-                            Err(err) => {
-                                let msg = format!("Failed to open image: {err}");
-                                set_status(&msg);
-                            }
+            let set_source_file = set_source_file.clone();
+            let apply_background = apply_background.clone();
+            let file_dialog = file_dialog.clone();
+            button.connect_clicked(move |_| {
+                let apply_background = apply_background.clone();
+                let set_status = set_status.clone();
+                let set_source_file = set_source_file.clone();
+                file_dialog.open(
+                    Some(&window),
+                    None::<&gio::Cancellable>,
+                    move |res| match res {
+                        Ok(file) => match file.path() {
+                            Some(path) => match gdk_pixbuf::Pixbuf::from_file(&path) {
+                                Ok(pixbuf) => {
+                                    apply_background(pixbuf);
+                                    set_source_file(Some(path));
+                                    set_status("");
+                                }
+                                Err(err) => {
+                                    let msg = format!("Failed to open image: {err}");
+                                    set_status(&msg);
+                                }
+                            },
+                            None => set_status("Failed to resolve file path."),
                         },
-                        None => set_status("Failed to resolve file path."),
+                        Err(err) => {
+                            let msg = format!("Open canceled: {err}");
+                            set_status(&msg);
+                        }
                     },
-                    Err(err) => {
-                        let msg = format!("Open canceled: {err}");
-                        set_status(&msg);
-                    }
-                },
-            );
-        });
+                );
+            });
+        }
     }
 
     {
         let set_status = set_status.clone();
+        let set_source_file = set_source_file.clone();
         let apply_background = apply_background.clone();
-        paste_button.connect_clicked(move |_| {
-            if let Some(display) = gdk::Display::default() {
-                let clipboard = display.clipboard();
-                clipboard.read_texture_async(None::<&gio::Cancellable>, {
-                    let set_status = set_status.clone();
-                    let apply_background = apply_background.clone();
-                    move |res| match res {
-                        Ok(Some(texture)) => {
-                            #[allow(deprecated)]
-                            if let Some(pixbuf) = gdk::pixbuf_get_from_texture(&texture) {
-                                apply_background(pixbuf);
-                                set_status("Pasted from clipboard.");
-                            } else {
-                                set_status("Clipboard image unavailable.");
+        for button in [paste_button.clone(), empty_paste_button.clone()] {
+            let set_status = set_status.clone();
+            let set_source_file = set_source_file.clone();
+            let apply_background = apply_background.clone();
+            button.connect_clicked(move |_| {
+                if let Some(display) = gdk::Display::default() {
+                    let clipboard = display.clipboard();
+                    clipboard.read_texture_async(None::<&gio::Cancellable>, {
+                        let set_status = set_status.clone();
+                        let set_source_file = set_source_file.clone();
+                        let apply_background = apply_background.clone();
+                        move |res| match res {
+                            Ok(Some(texture)) => {
+                                #[allow(deprecated)]
+                                if let Some(pixbuf) = gdk::pixbuf_get_from_texture(&texture) {
+                                    apply_background(pixbuf);
+                                    set_source_file(None);
+                                    set_status("Pasted from clipboard.");
+                                } else {
+                                    set_status("Clipboard image unavailable.");
+                                }
+                            }
+                            Ok(None) => set_status("Clipboard has no image."),
+                            Err(err) => {
+                                let msg = format!("Paste failed: {err}");
+                                set_status(&msg);
                             }
                         }
-                        Ok(None) => set_status("Clipboard has no image."),
-                        Err(err) => {
-                            let msg = format!("Paste failed: {err}");
-                            set_status(&msg);
-                        }
-                    }
-                });
-            } else {
-                set_status("Clipboard unavailable.");
-            }
-        });
+                    });
+                } else {
+                    set_status("Clipboard unavailable.");
+                }
+            });
+        }
     }
 
     {
@@ -1537,10 +2015,14 @@ fn load_settings(state: &Rc<RefCell<EditorState>>) {
     // Set default color if file doesn't exist or loading fails
     s.color = gdk::RGBA::new(1.0, 0.30, 0.30, 1.0); // Red
     s.stroke_width = 4.0;
+    s.close_after_copy = true;
 
     if kf.load_from_file(path, glib::KeyFileFlags::NONE).is_ok() {
         if let Ok(val) = kf.double("drawing", "stroke_width") {
             s.stroke_width = val;
+        }
+        if let Ok(val) = kf.boolean("behavior", "close_after_copy") {
+            s.close_after_copy = val;
         }
         if let Some(rgba) = kf
             .string("drawing", "color")
@@ -1562,5 +2044,6 @@ fn save_settings(state: &Rc<RefCell<EditorState>>) {
     let kf = glib::KeyFile::new();
     kf.set_double("drawing", "stroke_width", s.stroke_width);
     kf.set_string("drawing", "color", &s.color.to_string());
+    kf.set_boolean("behavior", "close_after_copy", s.close_after_copy);
     let _ = kf.save_to_file(path);
 }

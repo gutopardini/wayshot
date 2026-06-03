@@ -104,6 +104,7 @@ pub struct EditorState {
     pub viewport_height: i32,
     pub fit_to_window: bool,
     pub zoom: f64,
+    pub close_after_copy: bool,
     pub selected: Option<usize>,
     pixelate_cache: RefCell<HashMap<PixelateCacheKey, Pixbuf>>,
 }
@@ -127,6 +128,7 @@ impl EditorState {
             viewport_height: 0,
             fit_to_window: true,
             zoom: 1.0,
+            close_after_copy: true,
             selected: None,
             pixelate_cache: RefCell::new(HashMap::new()),
         }
@@ -204,6 +206,8 @@ pub fn draw(state: &EditorState, ctx: &cairo::Context) {
     ctx.scale(scale, scale);
 
     if let Some(bg) = state.background.as_ref() {
+        rounded_rect(ctx, 0.0, 0.0, bg.width() as f64, bg.height() as f64, 18.0 / scale);
+        ctx.clip();
         ctx.set_source_pixbuf(bg, 0.0, 0.0);
         let _ = ctx.paint();
     }
@@ -232,6 +236,43 @@ pub fn draw(state: &EditorState, ctx: &cairo::Context) {
         let _ = ctx.restore();
     }
     let _ = ctx.restore();
+}
+
+fn rounded_rect(ctx: &cairo::Context, x: f64, y: f64, w: f64, h: f64, radius: f64) {
+    let radius = radius.min(w / 2.0).min(h / 2.0).max(0.0);
+    let right = x + w;
+    let bottom = y + h;
+
+    ctx.new_sub_path();
+    ctx.arc(
+        right - radius,
+        y + radius,
+        radius,
+        -std::f64::consts::FRAC_PI_2,
+        0.0,
+    );
+    ctx.arc(
+        right - radius,
+        bottom - radius,
+        radius,
+        0.0,
+        std::f64::consts::FRAC_PI_2,
+    );
+    ctx.arc(
+        x + radius,
+        bottom - radius,
+        radius,
+        std::f64::consts::FRAC_PI_2,
+        std::f64::consts::PI,
+    );
+    ctx.arc(
+        x + radius,
+        y + radius,
+        radius,
+        std::f64::consts::PI,
+        std::f64::consts::PI * 1.5,
+    );
+    ctx.close_path();
 }
 
 pub fn render_to_pixbuf(state: &EditorState) -> Option<Pixbuf> {
@@ -277,10 +318,38 @@ pub fn view_transform(state: &EditorState) -> (f64, f64, f64) {
 
 pub fn map_to_image(state: &EditorState, x: f64, y: f64) -> Point {
     let (scale, offset_x, offset_y) = view_transform(state);
+    let (max_x, max_y) = state
+        .background
+        .as_ref()
+        .map(|background| {
+            (
+                (background.width() - 1).max(0) as f64,
+                (background.height() - 1).max(0) as f64,
+            )
+        })
+        .unwrap_or((f64::MAX, f64::MAX));
     Point {
-        x: ((x - offset_x) / scale).max(0.0),
-        y: ((y - offset_y) / scale).max(0.0),
+        x: ((x - offset_x) / scale).clamp(0.0, max_x),
+        y: ((y - offset_y) / scale).clamp(0.0, max_y),
     }
+}
+
+pub fn map_to_image_checked(state: &EditorState, x: f64, y: f64) -> Option<Point> {
+    let background = state.background.as_ref()?;
+    let (scale, offset_x, offset_y) = view_transform(state);
+    let img_w = background.width().max(1) as f64;
+    let img_h = background.height().max(1) as f64;
+    let image_x = (x - offset_x) / scale;
+    let image_y = (y - offset_y) / scale;
+
+    if image_x < 0.0 || image_y < 0.0 || image_x >= img_w || image_y >= img_h {
+        return None;
+    }
+
+    Some(Point {
+        x: image_x,
+        y: image_y,
+    })
 }
 
 fn draw_annotation(
