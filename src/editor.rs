@@ -206,7 +206,14 @@ pub fn draw(state: &EditorState, ctx: &cairo::Context) {
     ctx.scale(scale, scale);
 
     if let Some(bg) = state.background.as_ref() {
-        rounded_rect(ctx, 0.0, 0.0, bg.width() as f64, bg.height() as f64, 18.0 / scale);
+        rounded_rect(
+            ctx,
+            0.0,
+            0.0,
+            bg.width() as f64,
+            bg.height() as f64,
+            18.0 / scale,
+        );
         ctx.clip();
         ctx.set_source_pixbuf(bg, 0.0, 0.0);
         let _ = ctx.paint();
