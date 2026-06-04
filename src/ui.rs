@@ -330,8 +330,11 @@ fn theme_css(is_dark: bool) -> &'static str {
             box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
         }
         .color-swatch.toggle:checked {
-            border: 2px solid rgba(255, 255, 255, 0.96);
-            box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.52);
+            border: 2px solid rgba(255, 255, 255, 0.98);
+            box-shadow:
+                0 0 0 2px rgba(2, 6, 12, 0.92),
+                0 0 0 4px rgba(94, 234, 212, 0.94),
+                0 8px 18px rgba(0, 0, 0, 0.34);
         }
         .color-custom {
             min-width: 26px;
@@ -480,8 +483,11 @@ fn theme_css(is_dark: bool) -> &'static str {
             box-shadow: 0 4px 14px rgba(15, 23, 42, 0.14);
         }
         .color-swatch.toggle:checked {
-            border: 2px solid rgba(19, 78, 74, 0.78);
-            box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.34);
+            border: 2px solid rgba(255, 255, 255, 0.98);
+            box-shadow:
+                0 0 0 2px rgba(15, 23, 42, 0.86),
+                0 0 0 4px rgba(13, 148, 136, 0.86),
+                0 8px 18px rgba(15, 23, 42, 0.18);
         }
         .color-custom {
             min-width: 26px;
