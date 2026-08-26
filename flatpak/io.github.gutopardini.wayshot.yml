@@ -34,8 +34,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/gutopardini/wayshot.git
-        tag: v0.1.6
-        commit: 9664675fe80ba1196afcf65db3661031a280bb7c
+        tag: v0.3.0
+        commit: 206f465729eb9eaf2ea5fd93f7a4869ae35fe0ab
       - cargo-sources.json
     build-commands:
       - cargo build --release --locked
