@@ -6,7 +6,8 @@ This repository contains **WayShot**, a minimal Linux screenshot and annotation 
 
 - Language: Rust, edition 2024.
 - UI stack: GTK 4 via `gtk4`, libadwaita via `libadwaita`, Cairo drawing through GTK.
-- Screenshot backend: XDG desktop portal through `ashpd`.
+- Screenshot backend: XDG desktop portal through `ashpd`, with a full-screen
+  fallback when the current compositor does not support interactive capture.
 - Async runtime: `tokio`, used for portal screenshot requests and delay handling.
 - Packaging: Flatpak-first manifest under `flatpak/`, plus local desktop install through `Makefile`.
 - App ID: `io.github.gutopardini.wayshot`.
@@ -26,7 +27,7 @@ This repository contains **WayShot**, a minimal Linux screenshot and annotation 
 
 ## Runtime Behavior
 
-The application opens a maximized libadwaita window with a drawing area and floating palettes.
+The application opens a resizable libadwaita window with a drawing area and floating palettes.
 
 Image sources:
 
@@ -40,7 +41,11 @@ Outputs:
 
 - Copy rendered screenshot plus annotations to clipboard.
 - Press `Ctrl+C` to copy the rendered image to clipboard.
-- Save rendered image as PNG.
+- Save the rendered image in a format supported by a working runtime encoder.
+  The format selector is populated at startup and probes the encoder before
+  offering it, because some runtimes advertise a read-only loader as writable.
+  JPEG XL uses the optional `libjxl` runtime library when GdkPixbuf cannot
+  write JXL directly.
 
 Annotation tools:
 
@@ -50,7 +55,9 @@ Annotation tools:
 - Circle/ellipse.
 - Line.
 - Arrow.
-- Text insertion currently creates the literal text `"Text"` at click position.
+- Text insertion opens a prompt and uses the configurable text size at the click
+  position; selecting an existing text annotation and changing Text size
+  resizes it.
 - Blur/pixelate region.
 
 Editor state is stored in `Rc<RefCell<EditorState>>`. Undo/redo currently tracks pushed annotations, not every state mutation.
@@ -103,7 +110,7 @@ flatpak-builder --force-clean --install-deps-from=flathub --user --install build
 When installed via Flatpak, the capture command is:
 `flatpak run --env=WAYSHOT_CAPTURE=1 io.github.gutopardini.wayshot`
 
-Document `WAYSHOT_CAPTURE=1` for Flatpak shortcuts. It is the reliable capture-first entry point for GNOME and Flatpak launchers.
+Document `WAYSHOT_CAPTURE=1` for Flatpak shortcuts. It is the reliable capture-first entry point for GNOME, niri, COSMIC, and other Wayland portal desktops.
 
 ## Flatpak Release Workflow
 
@@ -157,7 +164,10 @@ If version was bumped, ensure `Cargo.lock` is synced by running `cargo check`.
 - Preserve the portal-based screenshot flow; Wayland/GNOME reliability is a core project goal.
 - Prefer small, explicit changes over new abstractions. The current codebase is intentionally compact.
 - Be careful with coordinate spaces. UI event handlers receive view coordinates; stored annotations use image coordinates.
-- **Persistence:** Drawing settings (stroke width, color) must be persisted via `glib::KeyFile` in `~/.config/wayshot/settings.ini`. Update both `load_settings` and `save_settings` when adding new persistent state.
+- **Persistence:** Drawing settings (stroke width, color, and text size), behavior
+  settings, and the selected output format are persisted via `glib::KeyFile` in
+  `~/.config/wayshot/settings.ini`. Update both `load_settings` and
+  `save_settings` when adding new persistent state.
 - **Flatpak Releases:** 
   - When updating the version, sync `Cargo.toml`, `Cargo.lock`, and `metainfo.xml`.
   - Update the Flatpak manifest (`flatpak/io.github.gutopardini.wayshot.yml`) with the exact commit hash and tag.
@@ -174,7 +184,12 @@ If version was bumped, ensure `Cargo.lock` is synced by running `cargo check`.
 
 ## Known Gaps / Risks
 
-- No automated tests are present in the current tree.
-- Text annotations are inserted with fixed content and no editing UI.
+- The current test suite is small and focuses on the optional JXL encoder;
+  broader UI and portal integration tests are still absent.
+- Text annotations can be added and edited through the text prompt; resizing is
+  available through the settings popover when a text annotation is selected.
 - Undo/redo is annotation-stack based and does not appear to cover selection movement as a distinct undo step, background replacement, or color/tool changes.
 - Clipboard close-after-copy depends on `wl-copy` being available. If `wl-copy` fails, WayShot falls back to GTK clipboard and keeps the window open so clipboard ownership is not lost.
+- Export formats are discovered from working runtime encoders;
+  JPEG XL is offered only when the installed runtime provides a functioning
+  JXL writer or `libjxl` encoder.

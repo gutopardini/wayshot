@@ -33,7 +33,10 @@ Desktop eligibility is declared in `data/io.github.gutopardini.wayshot.metainfo.
 - `pointing`
 - `display_length >= 768`
 
-The Flathub page text also states that WayShot is designed and supported only for GNOME running on Wayland. AppStream can communicate this clearly in the store, but Flatpak does not provide a hard GNOME-vs-KDE install filter.
+The Flathub page text states that WayShot is designed for GNOME and other
+Wayland desktops that provide the screenshot portal. AppStream can communicate
+this clearly in the store, but Flatpak does not provide a hard desktop support
+filter.
 
 ## Submit to Flathub
 

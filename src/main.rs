@@ -1,4 +1,5 @@
 mod editor;
+mod jxl;
 mod ui;
 
 use std::path::PathBuf;

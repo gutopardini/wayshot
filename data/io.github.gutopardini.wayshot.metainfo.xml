@@ -11,7 +11,9 @@
   <description>
     <p>
       WayShot is a fast, minimal screenshot and annotation tool inspired by Flameshot.
-      It is designed and supported only for GNOME running on Wayland.
+      It is designed for GNOME and other Wayland desktops that provide the
+      screenshot portal. Compositors without interactive portal capture use a
+      full-screen fallback.
     </p>
   </description>
   <launchable type="desktop-id">io.github.gutopardini.wayshot.desktop</launchable>
@@ -28,21 +30,30 @@
   <screenshots>
     <screenshot type="default">
       <caption>Main editor interface in dark mode</caption>
-      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.2.0/data/screenshots/dark.png</image>
+      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.3.0/data/screenshots/dark.png</image>
     </screenshot>
     <screenshot>
       <caption>Main editor interface in light mode</caption>
-      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.2.0/data/screenshots/light.png</image>
+      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.3.0/data/screenshots/light.png</image>
     </screenshot>
     <screenshot>
       <caption>Start screen with capture, open, and paste actions</caption>
-      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.2.0/data/screenshots/intro.png</image>
+      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.3.0/data/screenshots/intro.png</image>
     </screenshot>
   </screenshots>
   <provides>
     <binary>wayshot</binary>
   </provides>
   <releases>
+    <release version="0.3.0" date="2026-08-26">
+      <description>
+        <ul>
+          <li>Support screenshot portal fallbacks on niri and COSMIC</li>
+          <li>Improve image centering and window sizing after resize</li>
+          <li>Add configurable text size and image export formats, including JPEG XL when available</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-06-04">
       <description>
         <ul>

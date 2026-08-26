@@ -27,7 +27,10 @@ It is designed for the common “capture, mark, copy, paste” loop:
 - Select and move annotations.
 - Copy the rendered result to the clipboard.
 - `Ctrl+C` copies through `wl-copy` and closes WayShot when the copy succeeds.
-- Save the final image as PNG.
+- Save the final image as PNG, JPEG, WebP, JPEG XL, AVIF, or TIFF when the
+  corresponding runtime encoder is available and passes a save probe. JPEG XL
+  uses `libjxl` when the runtime's GdkPixbuf loader is read-only.
+- Resize text annotations from the settings popover.
 - Glass-style editor UI with image backdrop.
 
 ## Native Install
@@ -115,10 +118,16 @@ Shortcut: Super+Shift+S
 
 - Use the floating toolbar to choose an annotation tool.
 - Use the color palette to change annotation color.
-- Use settings to change stroke size, zoom, capture delay, and interactive capture.
+- Use settings to change stroke size and zoom.
+- Use settings to change text size and the output image format. Text size also
+  updates the selected text annotation.
 - Press `Ctrl+C` to copy the rendered image and close the window.
 - Use the copy button if you want to copy without closing the app.
-- Use save to export a PNG.
+- Use save to export in the selected format.
+
+WayShot keeps interactive portal capture on desktops that support it. On
+compositors such as niri, where the portal cannot provide interactive capture,
+it automatically falls back to a full-screen capture.
 
 ## Build
 
@@ -151,7 +160,8 @@ flatpak install flathub io.github.gutopardini.wayshot
 
 ### Manual GNOME Shortcut (Flatpak)
 
-When installed via Flatpak, you need to register the keyboard shortcut in GNOME to maintain the quick capture workflow.
+When installed via Flatpak, you need to register the keyboard shortcut in your
+desktop environment to maintain the quick capture workflow.
 Use `WAYSHOT_CAPTURE=1` for the documented capture-first shortcut so the command works consistently from GNOME and Flatpak launchers.
 
 #### Automated Install (Recommended)

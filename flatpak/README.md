@@ -54,3 +54,9 @@ flatpak run --env=WAYSHOT_CAPTURE=1 io.github.gutopardini.wayshot
 ```
 
 Flatpak can add a small cold-start delay before the screenshot portal appears.
+On compositors that do not implement interactive portal screenshots, WayShot
+automatically requests a full-screen capture instead.
+
+JPEG XL export uses the GNOME runtime's `libjxl` library when available; the
+format is hidden automatically if the runtime does not provide a working
+encoder.

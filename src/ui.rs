@@ -19,6 +19,7 @@ use gtk::glib;
 
 use crate::APP_ID;
 use crate::editor::{self, Annotation, EditorState, Point, Rect, Tool};
+use crate::jxl;
 
 const ICON_CAPTURE: &[u8] = include_bytes!("../assets/icons/camera.svg");
 const ICON_UNDO: &[u8] = include_bytes!("../assets/icons/arrow-back-up.svg");
@@ -43,6 +44,53 @@ const ICON_BLUR: &[u8] = include_bytes!("../assets/icons/blur.svg");
 const ICON_APP: &[u8] = include_bytes!("../assets/icons/wayshot-icon.svg");
 const CAPTURE_RESPONSE_POLL_INTERVAL: Duration = Duration::from_millis(16);
 
+#[derive(Clone, Copy)]
+struct SaveFormat {
+    id: &'static str,
+    label: &'static str,
+    extension: &'static str,
+    pixbuf_type: &'static str,
+}
+
+const SAVE_FORMATS: &[SaveFormat] = &[
+    SaveFormat {
+        id: "png",
+        label: "PNG",
+        extension: "png",
+        pixbuf_type: "png",
+    },
+    SaveFormat {
+        id: "jpeg",
+        label: "JPEG",
+        extension: "jpg",
+        pixbuf_type: "jpeg",
+    },
+    SaveFormat {
+        id: "webp",
+        label: "WebP",
+        extension: "webp",
+        pixbuf_type: "webp",
+    },
+    SaveFormat {
+        id: "jxl",
+        label: "JPEG XL (JXL)",
+        extension: "jxl",
+        pixbuf_type: "jxl",
+    },
+    SaveFormat {
+        id: "avif",
+        label: "AVIF",
+        extension: "avif",
+        pixbuf_type: "avif",
+    },
+    SaveFormat {
+        id: "tiff",
+        label: "TIFF",
+        extension: "tiff",
+        pixbuf_type: "tiff",
+    },
+];
+
 struct CaptureFailure {
     message: String,
     canceled: bool,
@@ -51,6 +99,42 @@ struct CaptureFailure {
 struct CaptureResponse {
     result: Result<String, CaptureFailure>,
     close_on_cancel: bool,
+}
+
+fn available_save_formats() -> Vec<SaveFormat> {
+    let formats = Pixbuf::formats();
+    SAVE_FORMATS
+        .iter()
+        .copied()
+        .filter(|save_format| {
+            if save_format.id == "jxl" {
+                return jxl::can_save();
+            }
+            formats.iter().any(|format| {
+                format.is_writable()
+                    && !format.is_disabled()
+                    && format
+                        .name()
+                        .is_some_and(|name| name.as_str() == save_format.pixbuf_type)
+            }) && format_can_save(save_format.pixbuf_type)
+        })
+        .collect()
+}
+
+fn format_can_save(pixbuf_type: &str) -> bool {
+    let Some(pixbuf) = Pixbuf::new(gdk_pixbuf::Colorspace::Rgb, true, 8, 1, 1) else {
+        return false;
+    };
+
+    pixbuf.save_to_bufferv(pixbuf_type, &[]).is_ok()
+}
+
+fn save_format_by_id(id: &str) -> SaveFormat {
+    SAVE_FORMATS
+        .iter()
+        .copied()
+        .find(|save_format| save_format.id == id)
+        .unwrap_or(SAVE_FORMATS[0])
 }
 
 impl From<PortalError> for CaptureFailure {
@@ -64,6 +148,55 @@ impl From<PortalError> for CaptureFailure {
             message: err.to_string(),
             canceled,
         }
+    }
+}
+
+fn niri_session() -> bool {
+    ["XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP"]
+        .iter()
+        .any(|variable| {
+            std::env::var(variable).is_ok_and(|value| {
+                value
+                    .split(':')
+                    .any(|desktop| desktop.eq_ignore_ascii_case("niri"))
+            })
+        })
+}
+
+async fn request_screenshot(
+    identifier: Option<WindowIdentifier>,
+    interactive: bool,
+) -> Result<String, CaptureFailure> {
+    Screenshot::request()
+        .identifier(identifier)
+        .interactive(interactive)
+        .modal(true)
+        .send()
+        .await
+        .and_then(|request| request.response())
+        .map(|response| response.uri().to_string())
+        .map_err(CaptureFailure::from)
+}
+
+async fn capture_screenshot(
+    identifier: Option<WindowIdentifier>,
+) -> Result<String, CaptureFailure> {
+    if niri_session() {
+        return request_screenshot(identifier, false).await;
+    }
+
+    match request_screenshot(identifier, true).await {
+        Ok(uri) => Ok(uri),
+        Err(interactive_error) if !interactive_error.canceled => request_screenshot(None, false)
+            .await
+            .map_err(|fallback_error| CaptureFailure {
+                message: format!(
+                    "Interactive capture failed: {}. Full-screen fallback failed: {}",
+                    interactive_error.message, fallback_error.message
+                ),
+                canceled: fallback_error.canceled,
+            }),
+        Err(error) => Err(error),
     }
 }
 
@@ -699,7 +832,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
     copy_button.add_css_class("export-action");
     let save_button = gtk::Button::builder()
         .child(&create_icon(ICON_SAVE, &icon_images, &icon_color))
-        .tooltip_text("Save as PNG")
+        .tooltip_text("Save image")
         .build();
     save_button.add_css_class("header-action");
     header.pack_end(&copy_button);
@@ -939,6 +1072,60 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         .margin_end(12)
         .width_request(260)
         .build();
+
+    let text_size_adjustment =
+        gtk::Adjustment::new(state.borrow().text_size, 8.0, 128.0, 1.0, 4.0, 0.0);
+    let text_size_spin = gtk::SpinButton::builder()
+        .adjustment(&text_size_adjustment)
+        .climb_rate(1.0)
+        .digits(0)
+        .numeric(true)
+        .width_chars(3)
+        .tooltip_text("Text size")
+        .build();
+    text_size_spin.add_css_class("compact-spin");
+    let text_size_row = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(12)
+        .build();
+    let text_size_label = gtk::Label::builder()
+        .label("Text size")
+        .xalign(0.0)
+        .hexpand(true)
+        .build();
+    text_size_row.append(&text_size_label);
+    text_size_row.append(&text_size_spin);
+
+    let available_formats = available_save_formats();
+    let format_labels: Vec<&str> = available_formats
+        .iter()
+        .map(|format| format.label)
+        .collect();
+    let save_format_dropdown = gtk::DropDown::from_strings(&format_labels);
+    let saved_format = state.borrow().save_format.clone();
+    let active_format_index = available_formats
+        .iter()
+        .position(|format| format.id == saved_format)
+        .unwrap_or(0);
+    if !available_formats.is_empty() {
+        save_format_dropdown.set_selected(active_format_index as u32);
+        let active_format = available_formats[active_format_index];
+        if saved_format != active_format.id {
+            state.borrow_mut().save_format = active_format.id.to_string();
+        }
+    }
+    let save_format_row = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(12)
+        .build();
+    let save_format_label = gtk::Label::builder()
+        .label("Save format")
+        .xalign(0.0)
+        .hexpand(true)
+        .build();
+    save_format_row.append(&save_format_label);
+    save_format_row.append(&save_format_dropdown);
+
     let close_after_copy_row = gtk::Box::builder()
         .orientation(gtk::Orientation::Horizontal)
         .spacing(12)
@@ -955,7 +1142,71 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
     close_after_copy_row.append(&close_after_copy_label);
     close_after_copy_row.append(&close_after_copy_switch);
     settings_box.append(&close_after_copy_row);
+    settings_box.append(&text_size_row);
+    settings_box.append(&save_format_row);
     settings_popover.set_child(Some(&settings_box));
+
+    let text_size_updating = Rc::new(Cell::new(false));
+    {
+        let state = state.clone();
+        let drawing_area = drawing_area.clone();
+        let text_size_updating = text_size_updating.clone();
+        text_size_spin.connect_value_changed(move |spin| {
+            if text_size_updating.get() {
+                return;
+            }
+
+            let value = spin.value();
+            {
+                let mut state = state.borrow_mut();
+                state.text_size = value;
+                if let Some(index) = state.selected
+                    && matches!(
+                        state.annotations.get(index),
+                        Some(Annotation::Text { size, .. }) if (*size - value).abs() > f64::EPSILON
+                    )
+                {
+                    state.record_change();
+                    if let Some(Annotation::Text { size, .. }) = state.annotations.get_mut(index) {
+                        *size = value;
+                    }
+                }
+            }
+            save_settings(&state);
+            drawing_area.queue_draw();
+        });
+    }
+    {
+        let state = state.clone();
+        let available_formats = available_formats.clone();
+        save_format_dropdown.connect_selected_notify(move |dropdown| {
+            if let Some(format) = available_formats.get(dropdown.selected() as usize) {
+                state.borrow_mut().save_format = format.id.to_string();
+                save_settings(&state);
+            }
+        });
+    }
+
+    let sync_text_size = Rc::new({
+        let state = state.clone();
+        let text_size_spin = text_size_spin.clone();
+        let text_size_updating = text_size_updating.clone();
+        move || {
+            let size = {
+                let state = state.borrow();
+                state
+                    .selected
+                    .and_then(|index| match state.annotations.get(index) {
+                        Some(Annotation::Text { size, .. }) => Some(*size),
+                        _ => None,
+                    })
+                    .unwrap_or(state.text_size)
+            };
+            text_size_updating.set(true);
+            text_size_spin.set_value(size);
+            text_size_updating.set(false);
+        }
+    });
 
     {
         let state = state.clone();
@@ -1026,8 +1277,6 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         .content(&toolbar_view)
         .build();
 
-    window.maximize();
-
     let zoom_updating = Rc::new(Cell::new(false));
     let fit_updating = Rc::new(Cell::new(false));
 
@@ -1043,10 +1292,6 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         let zoom_updating = zoom_updating.clone();
         let fit_updating = fit_updating.clone();
         Rc::new(move |pixbuf: gdk_pixbuf::Pixbuf| {
-            let width = pixbuf.width();
-            let height = pixbuf.height();
-            drawing_area.set_content_width(width);
-            drawing_area.set_content_height(height);
             {
                 let mut state = state.borrow_mut();
                 state.set_background(pixbuf);
@@ -1063,6 +1308,9 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
             empty_state.set_visible(false);
             palette.set_visible(true);
             control_dock.set_visible(true);
+            scroller.hadjustment().set_value(0.0);
+            scroller.vadjustment().set_value(0.0);
+            drawing_area.queue_resize();
             drawing_area.queue_draw();
         })
     };
@@ -1163,15 +1411,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                         let hide_delay = std::time::Duration::from_millis(200);
                         tokio::time::sleep(hide_delay).await;
                     }
-                    let result = Screenshot::request()
-                        .identifier(identifier)
-                        .interactive(true)
-                        .modal(true)
-                        .send()
-                        .await
-                        .and_then(|request| request.response())
-                        .map(|response| response.uri().to_string())
-                        .map_err(CaptureFailure::from);
+                    let result = capture_screenshot(identifier).await;
 
                     let _ = sender.send(CaptureResponse {
                         result,
@@ -1222,11 +1462,17 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
             state.viewport_width = viewport_width;
             state.viewport_height = viewport_height;
             if let Some(background) = state.background.as_ref() {
-                let (scale, _, _) = editor::view_transform(&state);
-                let scaled_w = (background.width() as f64 * scale).round() as i32;
-                let scaled_h = (background.height() as f64 * scale).round() as i32;
-                let content_w = scaled_w.max(viewport_width).max(1);
-                let content_h = scaled_h.max(viewport_height).max(1);
+                let (content_w, content_h) = if state.fit_to_window {
+                    (1, 1)
+                } else {
+                    let (scale, _, _) = editor::view_transform(&state);
+                    let scaled_w = (background.width() as f64 * scale).round() as i32;
+                    let scaled_h = (background.height() as f64 * scale).round() as i32;
+                    (
+                        scaled_w.max(viewport_width).max(1),
+                        scaled_h.max(viewport_height).max(1),
+                    )
+                };
                 if draw_area_for_draw.content_width() != content_w {
                     draw_area_for_draw.set_content_width(content_w);
                 }
@@ -1239,6 +1485,13 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         editor::draw(&state, ctx);
     });
 
+    {
+        let drawing_area = drawing_area.clone();
+        drawing_area.connect_resize(move |area, _, _| {
+            area.queue_draw();
+        });
+    }
+
     let move_changed = Rc::new(Cell::new(false));
     let eraser_changed = Rc::new(Cell::new(false));
     let drag = gtk::GestureDrag::new();
@@ -1247,6 +1500,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         let drawing_area = drawing_area.clone();
         let move_changed = move_changed.clone();
         let eraser_changed = eraser_changed.clone();
+        let sync_text_size = sync_text_size.clone();
         drag.connect_drag_begin(move |_, x, y| {
             let mut state = state.borrow_mut();
             let Some(point) = editor::map_to_image_checked(&state, x, y) else {
@@ -1327,6 +1581,11 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                 Tool::Text => {
                     state.draft = None;
                 }
+            }
+            let sync_text = matches!(state.tool, Tool::Select);
+            drop(state);
+            if sync_text {
+                sync_text_size();
             }
             drawing_area.queue_draw();
         });
@@ -1454,6 +1713,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         let state = state.clone();
         let drawing_area = drawing_area.clone();
         let window = window.clone();
+        let sync_text_size = sync_text_size.clone();
         click.connect_pressed(move |_, n_press, x, y| {
             let pos = {
                 let state_ref = state.borrow();
@@ -1462,6 +1722,8 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                         drop(state_ref);
                         let mut editor_state = state.borrow_mut();
                         editor_state.selected = None;
+                        drop(editor_state);
+                        sync_text_size();
                         drawing_area.queue_draw();
                     }
                     return;
@@ -1492,8 +1754,11 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                 Tool::Select => {
                     let mut editor_state = state.borrow_mut();
                     editor_state.selected = editor::hit_test(&editor_state.annotations, pos);
+                    drop(editor_state);
+                    sync_text_size();
                     drawing_area.queue_draw();
 
+                    let editor_state = state.borrow();
                     if n_press == 2
                         && let Some(index) = editor_state.selected
                         && let Some(Annotation::Text { text, .. }) =
@@ -1538,6 +1803,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
             let tool = *tool;
             let buttons = buttons.clone();
             let state = state.clone();
+            let sync_text_size = sync_text_size.clone();
             button.connect_toggled(move |active_button| {
                 if !active_button.is_active() {
                     return;
@@ -1551,6 +1817,8 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                 state.tool = tool;
                 state.draft = None;
                 state.selected = None;
+                drop(state);
+                sync_text_size();
             });
         }
 
@@ -1653,8 +1921,10 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         {
             let state = state.clone();
             let drawing_area = drawing_area.clone();
+            let sync_text_size = sync_text_size.clone();
             undo_action.connect_activate(move |_, _| {
                 state.borrow_mut().undo();
+                sync_text_size();
                 drawing_area.queue_draw();
             });
         }
@@ -1665,8 +1935,10 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         {
             let state = state.clone();
             let drawing_area = drawing_area.clone();
+            let sync_text_size = sync_text_size.clone();
             redo_action.connect_activate(move |_, _| {
                 state.borrow_mut().redo();
+                sync_text_size();
                 drawing_area.queue_draw();
             });
         }
@@ -1676,8 +1948,10 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         {
             let state = state.clone();
             let drawing_area = drawing_area.clone();
+            let sync_text_size = sync_text_size.clone();
             undo_button.connect_clicked(move |_| {
                 state.borrow_mut().undo();
+                sync_text_size();
                 drawing_area.queue_draw();
             });
         }
@@ -1685,14 +1959,17 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
     {
         let state = state.clone();
         let drawing_area = drawing_area.clone();
+        let sync_text_size = sync_text_size.clone();
         redo_button.connect_clicked(move |_| {
             state.borrow_mut().redo();
+            sync_text_size();
             drawing_area.queue_draw();
         });
     }
     {
         let state = state.clone();
         let drawing_area = drawing_area.clone();
+        let sync_text_size = sync_text_size.clone();
         let key_controller = gtk::EventControllerKey::new();
         key_controller.connect_key_pressed(move |_, key, _, _| {
             if key != gdk::Key::Delete && key != gdk::Key::BackSpace {
@@ -1703,6 +1980,8 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
             if let Some(index) = state.selected.take()
                 && state.remove_annotation(index).is_some()
             {
+                drop(state);
+                sync_text_size();
                 drawing_area.queue_draw();
                 return glib::Propagation::Stop;
             }
@@ -1886,13 +2165,15 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         let state = state.clone();
         let set_status = set_status.clone();
         let file_dialog = gtk::FileDialog::new();
-        file_dialog.set_title("Save PNG");
         save_button.connect_clicked(move |_| {
+            let format = save_format_by_id(&state.borrow().save_format);
             let Some(pixbuf) = editor::render_to_pixbuf(&state.borrow()) else {
                 set_status("Nothing to save yet.");
                 return;
             };
-            let texture = gdk::Texture::for_pixbuf(&pixbuf);
+            let initial_name = format!("wayshot.{}", format.extension);
+            file_dialog.set_title(&format!("Save {}", format.label));
+            file_dialog.set_initial_name(Some(&initial_name));
             let set_status = set_status.clone();
             file_dialog.save(
                 Some(&window),
@@ -1900,11 +2181,16 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                 move |res| match res {
                     Ok(file) => match file.path() {
                         Some(mut path) => {
-                            if path.extension().is_none() {
-                                path.set_extension("png");
-                            }
-                            match texture.save_to_png(&path) {
-                                Ok(()) => set_status("Saved PNG."),
+                            path.set_extension(format.extension);
+                            let result = if format.id == "jxl" {
+                                jxl::save(&pixbuf, &path)
+                            } else {
+                                pixbuf
+                                    .savev(&path, format.pixbuf_type, &[])
+                                    .map_err(|error| error.to_string())
+                            };
+                            match result {
+                                Ok(()) => set_status(&format!("Saved {}.", format.label)),
                                 Err(err) => {
                                     let msg = format!("Save failed: {err}");
                                     set_status(&msg);
@@ -1950,6 +2236,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         let zoom_adjustment = zoom_adjustment.clone();
         let zoom_updating = zoom_updating.clone();
         let fit_updating = fit_updating.clone();
+        let scroller = scroller.clone();
         fit_toggle.connect_toggled(move |toggle| {
             if fit_updating.get() {
                 return;
@@ -1957,6 +2244,8 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
             let mut state = state.borrow_mut();
             state.fit_to_window = toggle.is_active();
             if state.fit_to_window {
+                scroller.hadjustment().set_value(0.0);
+                scroller.vadjustment().set_value(0.0);
                 let (scale, _, _) = editor::view_transform(&state);
                 zoom_updating.set(true);
                 zoom_adjustment.set_value(scale);
@@ -2021,11 +2310,19 @@ fn load_settings(state: &Rc<RefCell<EditorState>>) {
     // Set default color if file doesn't exist or loading fails
     s.color = gdk::RGBA::new(1.0, 0.30, 0.30, 1.0); // Red
     s.stroke_width = 4.0;
+    s.text_size = 22.0;
+    s.save_format = "png".to_string();
     s.close_after_copy = true;
 
     if kf.load_from_file(path, glib::KeyFileFlags::NONE).is_ok() {
         if let Ok(val) = kf.double("drawing", "stroke_width") {
             s.stroke_width = val;
+        }
+        if let Ok(val) = kf.double("drawing", "text_size") {
+            s.text_size = val.clamp(8.0, 128.0);
+        }
+        if let Ok(val) = kf.string("output", "format") {
+            s.save_format = val.to_string();
         }
         if let Ok(val) = kf.boolean("behavior", "close_after_copy") {
             s.close_after_copy = val;
@@ -2049,7 +2346,9 @@ fn save_settings(state: &Rc<RefCell<EditorState>>) {
 
     let kf = glib::KeyFile::new();
     kf.set_double("drawing", "stroke_width", s.stroke_width);
+    kf.set_double("drawing", "text_size", s.text_size);
     kf.set_string("drawing", "color", &s.color.to_string());
+    kf.set_string("output", "format", &s.save_format);
     kf.set_boolean("behavior", "close_after_copy", s.close_after_copy);
     let _ = kf.save_to_file(path);
 }
