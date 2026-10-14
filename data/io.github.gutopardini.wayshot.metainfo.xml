@@ -30,21 +30,30 @@
   <screenshots>
     <screenshot type="default">
       <caption>Main editor interface in dark mode</caption>
-      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.3.0/data/screenshots/dark.png</image>
+      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.3.1/data/screenshots/dark.png</image>
     </screenshot>
     <screenshot>
       <caption>Main editor interface in light mode</caption>
-      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.3.0/data/screenshots/light.png</image>
+      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.3.1/data/screenshots/light.png</image>
     </screenshot>
     <screenshot>
       <caption>Start screen with capture, open, and paste actions</caption>
-      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.3.0/data/screenshots/intro.png</image>
+      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.3.1/data/screenshots/intro.png</image>
     </screenshot>
   </screenshots>
   <provides>
     <binary>wayshot</binary>
   </provides>
   <releases>
+    <release version="0.3.1" date="2026-10-13">
+      <description>
+        <ul>
+          <li>Add command-line options to save, copy, or print a capture without opening the editor</li>
+          <li>Request the screenshot portal before building the window so keyboard shortcuts open the capture UI sooner</li>
+          <li>Stay closed when the screenshot UI is cancelled</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.0" date="2026-08-26">
       <description>
         <ul>
