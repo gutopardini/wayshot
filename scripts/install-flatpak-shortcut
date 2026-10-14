@@ -6,7 +6,7 @@ set -euo pipefail
 
 APP_ID="io.github.gutopardini.wayshot"
 SHORTCUT_NAME="WayShot (Flatpak)"
-SHORTCUT_COMMAND="flatpak run --env=WAYSHOT_CAPTURE=1 $APP_ID"
+SHORTCUT_COMMAND="flatpak run $APP_ID --capture"
 SHORTCUT_BINDING="<Shift><Super>s"
 SHORTCUT_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/wayshot-flatpak/"
 

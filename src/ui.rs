@@ -1,7 +1,6 @@
 use std::cell::{Cell, RefCell};
-use std::io::{Cursor, Write};
+use std::io::Cursor;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::mpsc;
@@ -9,17 +8,16 @@ use std::time::Duration;
 
 use adw::prelude::*;
 use ashpd::WindowIdentifier;
-use ashpd::desktop::ResponseError;
-use ashpd::desktop::screenshot::Screenshot;
-use ashpd::{Error as PortalError, PortalError as DesktopPortalError};
 use gdk_pixbuf::Pixbuf;
 use gtk::gdk;
 use gtk::gio;
 use gtk::glib;
 
 use crate::APP_ID;
+use crate::capture::{self, CaptureFailure, CaptureMode};
 use crate::editor::{self, Annotation, EditorState, Point, Rect, Tool};
 use crate::jxl;
+use crate::output;
 
 const ICON_CAPTURE: &[u8] = include_bytes!("../assets/icons/camera.svg");
 const ICON_UNDO: &[u8] = include_bytes!("../assets/icons/arrow-back-up.svg");
@@ -91,11 +89,6 @@ const SAVE_FORMATS: &[SaveFormat] = &[
     },
 ];
 
-struct CaptureFailure {
-    message: String,
-    canceled: bool,
-}
-
 struct CaptureResponse {
     result: Result<String, CaptureFailure>,
     close_on_cancel: bool,
@@ -135,69 +128,6 @@ fn save_format_by_id(id: &str) -> SaveFormat {
         .copied()
         .find(|save_format| save_format.id == id)
         .unwrap_or(SAVE_FORMATS[0])
-}
-
-impl From<PortalError> for CaptureFailure {
-    fn from(err: PortalError) -> Self {
-        let canceled = matches!(
-            err,
-            PortalError::Response(ResponseError::Cancelled)
-                | PortalError::Portal(DesktopPortalError::Cancelled(_))
-        );
-        Self {
-            message: err.to_string(),
-            canceled,
-        }
-    }
-}
-
-fn niri_session() -> bool {
-    ["XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP"]
-        .iter()
-        .any(|variable| {
-            std::env::var(variable).is_ok_and(|value| {
-                value
-                    .split(':')
-                    .any(|desktop| desktop.eq_ignore_ascii_case("niri"))
-            })
-        })
-}
-
-async fn request_screenshot(
-    identifier: Option<WindowIdentifier>,
-    interactive: bool,
-) -> Result<String, CaptureFailure> {
-    Screenshot::request()
-        .identifier(identifier)
-        .interactive(interactive)
-        .modal(true)
-        .send()
-        .await
-        .and_then(|request| request.response())
-        .map(|response| response.uri().to_string())
-        .map_err(CaptureFailure::from)
-}
-
-async fn capture_screenshot(
-    identifier: Option<WindowIdentifier>,
-) -> Result<String, CaptureFailure> {
-    if niri_session() {
-        return request_screenshot(identifier, false).await;
-    }
-
-    match request_screenshot(identifier, true).await {
-        Ok(uri) => Ok(uri),
-        Err(interactive_error) if !interactive_error.canceled => request_screenshot(None, false)
-            .await
-            .map_err(|fallback_error| CaptureFailure {
-                message: format!(
-                    "Interactive capture failed: {}. Full-screen fallback failed: {}",
-                    interactive_error.message, fallback_error.message
-                ),
-                canceled: fallback_error.canceled,
-            }),
-        Err(error) => Err(error),
-    }
 }
 
 fn set_image_from_svg(image: &gtk::Image, icon: &[u8], color: &str) {
@@ -335,24 +265,6 @@ fn show_text_editor(
     text_window.present();
     entry.grab_focus();
     entry.select_region(0, -1);
-}
-
-fn copy_png_with_wl_copy(pixbuf: &Pixbuf) -> Result<(), String> {
-    let png = pixbuf
-        .save_to_bufferv("png", &[])
-        .map_err(|err| err.to_string())?;
-    let mut child = Command::new("wl-copy")
-        .args(["--type", "image/png"])
-        .stdin(Stdio::piped())
-        .spawn()
-        .map_err(|err| err.to_string())?;
-    let mut stdin = child
-        .stdin
-        .take()
-        .ok_or_else(|| "Failed to open wl-copy stdin.".to_string())?;
-    stdin.write_all(&png).map_err(|err| err.to_string())?;
-    drop(stdin);
-    Ok(())
 }
 
 fn theme_css(is_dark: bool) -> &'static str {
@@ -665,8 +577,14 @@ fn theme_css(is_dark: bool) -> &'static str {
     }
 }
 
-pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_capture: bool) {
-    let runtime = Arc::new(tokio::runtime::Runtime::new().expect("Failed to start async runtime"));
+pub fn build_ui(
+    app: &adw::Application,
+    initial_image: Option<PathBuf>,
+    startup_capture: Option<mpsc::Receiver<Result<String, CaptureFailure>>>,
+    runtime: Arc<tokio::runtime::Runtime>,
+    format_override: Option<String>,
+) {
+    let initial_capture = startup_capture.is_some();
 
     let state = Rc::new(RefCell::new(EditorState::new()));
     load_settings(&state);
@@ -674,6 +592,9 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         let mut state = state.borrow_mut();
         state.fit_to_window = true;
         state.zoom = 1.0;
+        if let Some(format) = format_override {
+            state.save_format = format;
+        }
     }
 
     let icon_images: IconImages = Rc::new(RefCell::new(Vec::new()));
@@ -1340,11 +1261,33 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
     let button_for_timer = capture_button.clone();
     let apply_background_for_timer = apply_background.clone();
     let window_for_timer = window.clone();
+    let app_for_timer = app.clone();
+    let startup_capture = Rc::new(RefCell::new(startup_capture));
+    if initial_capture {
+        capture_button.set_sensitive(false);
+    }
 
     glib::timeout_add_local(CAPTURE_RESPONSE_POLL_INTERVAL, move || {
-        while let Ok(response) = receiver.try_recv() {
+        let startup_result = {
+            let mut slot = startup_capture.borrow_mut();
+            let received = slot
+                .as_mut()
+                .and_then(|receiver| match receiver.try_recv() {
+                    Ok(result) => Some(result),
+                    Err(mpsc::TryRecvError::Disconnected) => Some(Err(CaptureFailure::failed(
+                        "The capture task stopped before returning a screenshot.",
+                    ))),
+                    Err(mpsc::TryRecvError::Empty) => None,
+                });
+            if received.is_some() {
+                slot.take();
+            }
+            received
+        };
+
+        let handle = |result: Result<String, CaptureFailure>, close_on_cancel: bool| -> bool {
             button_for_timer.set_sensitive(true);
-            match response.result {
+            match result {
                 Ok(uri) => {
                     let file = gio::File::for_uri(&uri);
                     match file.path() {
@@ -1363,17 +1306,37 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                             set_status_for_timer("Failed to resolve capture path.");
                         }
                     }
+                    present_window(&window_for_timer);
+                    false
+                }
+                Err(err) if err.is_user_abort() && close_on_cancel => {
+                    window_for_timer.set_visible(false);
+                    app_for_timer.quit();
+                    true
+                }
+                Err(err) if err.is_user_abort() => {
+                    set_status_for_timer("");
+                    present_window(&window_for_timer);
+                    false
                 }
                 Err(err) => {
-                    if response.close_on_cancel && err.canceled {
-                        window_for_timer.close();
-                        continue;
-                    }
                     let msg = format!("Capture failed: {}", err.message);
                     set_status_for_timer(&msg);
+                    present_window(&window_for_timer);
+                    false
                 }
             }
-            present_window(&window_for_timer);
+        };
+
+        if let Some(result) = startup_result
+            && handle(result, true)
+        {
+            return glib::ControlFlow::Break;
+        }
+        while let Ok(response) = receiver.try_recv() {
+            if handle(response.result, response.close_on_cancel) {
+                return glib::ControlFlow::Break;
+            }
         }
         glib::ControlFlow::Continue
     });
@@ -1383,10 +1346,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         let set_status_for_capture = set_status.clone();
         let button = capture_button.clone();
         let window_for_capture = window.clone();
-        let skip_hide_once = Rc::new(Cell::new(initial_capture));
         move || {
-            let close_on_cancel = skip_hide_once.replace(false);
-            let hide_before_capture = !close_on_cancel;
             button.set_sensitive(false);
             set_status_for_capture("Capturing via portal...");
 
@@ -1396,26 +1356,16 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
             let window_for_hide = window_for_capture.clone();
 
             glib::MainContext::default().spawn_local(async move {
-                let identifier = if hide_before_capture {
-                    WindowIdentifier::from_native(&window_for_identifier).await
-                } else {
-                    None
-                };
-
-                if hide_before_capture {
-                    window_for_hide.set_visible(false);
-                }
+                let identifier = WindowIdentifier::from_native(&window_for_identifier).await;
+                window_for_hide.set_visible(false);
 
                 runtime.spawn(async move {
-                    if hide_before_capture {
-                        let hide_delay = std::time::Duration::from_millis(200);
-                        tokio::time::sleep(hide_delay).await;
-                    }
-                    let result = capture_screenshot(identifier).await;
+                    tokio::time::sleep(Duration::from_millis(200)).await;
+                    let result = capture::capture_screenshot(identifier, CaptureMode::Auto).await;
 
                     let _ = sender.send(CaptureResponse {
                         result,
-                        close_on_cancel,
+                        close_on_cancel: false,
                     });
                 });
             });
@@ -1433,10 +1383,6 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
         empty_capture_button.connect_clicked(move |_| {
             start_capture();
         });
-    }
-
-    if initial_capture {
-        start_capture();
     }
 
     let state_for_draw = state.clone();
@@ -2042,7 +1988,7 @@ pub fn build_ui(app: &adw::Application, initial_image: Option<PathBuf>, initial_
                     copy_to_gtk_clipboard(&pixbuf);
                     return false;
                 }
-                match copy_png_with_wl_copy(&pixbuf) {
+                match output::copy_png_with_wl_copy(&pixbuf) {
                     Ok(()) => true,
                     Err(err) => {
                         copy_to_gtk_clipboard(&pixbuf);

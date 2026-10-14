@@ -47,15 +47,24 @@ flatpak-builder --force-clean --install-deps-from=flathub --user --install build
 
 ## GNOME shortcut
 
-Use the environment variable for capture-first mode:
+Capture from a shortcut with:
 
 ```sh
-flatpak run --env=WAYSHOT_CAPTURE=1 io.github.gutopardini.wayshot
+flatpak run io.github.gutopardini.wayshot --capture
 ```
 
-Flatpak can add a small cold-start delay before the screenshot portal appears.
+`WAYSHOT_CAPTURE=1` still starts the same capture-first flow. WayShot requests
+the screenshot portal before building the editor, and Esc in the screenshot UI
+exits without opening the window. These output commands skip the editor:
+
+```sh
+flatpak run io.github.gutopardini.wayshot -- --clipboard
+flatpak run io.github.gutopardini.wayshot -- --path ~/Pictures --clipboard
+flatpak run io.github.gutopardini.wayshot -- --fullscreen --clipboard
+```
+
 On compositors that do not implement interactive portal screenshots, WayShot
-automatically requests a full-screen capture instead.
+automatically requests a full-screen capture instead. A dismissal does not.
 
 JPEG XL export uses the GNOME runtime's `libjxl` library when available; the
 format is hidden automatically if the runtime does not provide a working

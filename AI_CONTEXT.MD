@@ -14,7 +14,10 @@ This repository contains **WayShot**, a minimal Linux screenshot and annotation 
 
 ## Key Files
 
-- `src/main.rs`: app entry point. Creates an `adw::Application` and delegates UI construction to `ui::build_ui`.
+- `src/main.rs`: app entry point. Parses CLI options, starts a portal capture before GTK when one was requested, then either writes the headless output or creates an `adw::Application` and delegates UI construction to `ui::build_ui`.
+- `src/cli.rs`: argument parsing for capture mode, delay, and headless output.
+- `src/capture.rs`: portal screenshot requests. Interactive dismissal, including GNOME's Escape response, does not fall back to a full-screen capture.
+- `src/output.rs`: headless save, clipboard copy, and stdout output.
 - `src/ui.rs`: most application wiring. Builds the GTK/libadwaita window, header actions, floating tool palette, color palette, settings popover, screenshot portal flow, file open/save, clipboard copy/paste, zoom, and input event controllers.
 - `src/editor.rs`: editor model and drawing engine. Defines `EditorState`, `Annotation`, `Tool`, coordinate transforms, hit testing, movement, rendering to pixbuf, and Cairo drawing for annotations.
 - `assets/icons/`: SVG icons embedded at compile time with `include_bytes!`.
@@ -23,7 +26,7 @@ This repository contains **WayShot**, a minimal Linux screenshot and annotation 
 - `flatpak/io.github.gutopardini.wayshot.yml`: Flatpak build manifest.
 - `flatpak/cargo-sources.json`: generated vendored crate source list for Flatpak builds.
 - `Makefile`: local `make install` target.
-- `scripts/wayshot-gnome-capture`: helper script that launches `wayshot` with `WAYSHOT_CAPTURE=1`, causing the app to start hidden, request a screenshot through the portal, then present itself with the captured image loaded.
+- `scripts/wayshot-gnome-capture`: helper script that launches `wayshot --capture`, which starts hidden, requests a screenshot through the portal, then presents itself with the captured image loaded.
 
 ## Runtime Behavior
 
@@ -35,7 +38,11 @@ Image sources:
 - Open an image from disk through `gtk::FileDialog`.
 - Paste an image from the clipboard.
 - Launch with a file path argument, for example `wayshot screenshot.png`.
-- Use `wayshot-gnome-capture` after `make install` to start WayShot in capture-first mode.
+- `wayshot --capture`, `-c`, or `WAYSHOT_CAPTURE=1` starts a capture and then opens the editor. The portal request is issued before the editor UI is built.
+- `--fullscreen` and `--region` choose the portal mode. The default still tries interactive capture and falls back to full screen only when the portal cannot offer it.
+- `--path DIR`, `--clipboard`, and `--raw` finish without opening the editor. `--path` and `--clipboard` can be combined. `--format` overrides the output format for that run. `--delay SECONDS` waits before the portal request.
+- Pressing Esc in the GNOME screenshot UI cancels the capture. A shortcut launch exits without presenting WayShot. GNOME reports that dismissal as portal response 2, not response 1.
+- Use `wayshot-gnome-capture` after `make install` to start WayShot in capture-first mode. It executes `wayshot --capture`.
 
 Outputs:
 
@@ -108,9 +115,9 @@ flatpak-builder --force-clean --install-deps-from=flathub --user --install build
 ```
 
 When installed via Flatpak, the capture command is:
-`flatpak run --env=WAYSHOT_CAPTURE=1 io.github.gutopardini.wayshot`
+`flatpak run io.github.gutopardini.wayshot --capture`
 
-Document `WAYSHOT_CAPTURE=1` for Flatpak shortcuts. It is the reliable capture-first entry point for GNOME, niri, COSMIC, and other Wayland portal desktops.
+`WAYSHOT_CAPTURE=1` remains a capture-first alias for existing shortcuts. The portal request starts before the editor is built. Esc in the screenshot UI exits without presenting the window.
 
 ## Flatpak Release Workflow
 

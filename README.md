@@ -92,7 +92,7 @@ Make sure `~/.local/bin` is in your `PATH`.
 Capture and open the editor:
 
 ```sh
-wayshot-gnome-capture
+wayshot --capture
 ```
 
 Open an existing image:
@@ -107,10 +107,27 @@ Run the app normally:
 wayshot
 ```
 
+`wayshot --help` lists the capture options. The outcome is chosen before the
+screenshot UI appears, so each desktop shortcut can do one thing:
+
+```sh
+wayshot --clipboard
+wayshot --path ~/Pictures
+wayshot --path ~/Pictures --clipboard
+wayshot --fullscreen --clipboard
+wayshot --region --path ~/Pictures --format png
+wayshot --raw
+wayshot --delay 2 --fullscreen --path ~/Pictures
+```
+
+`--path` and `--clipboard` can be combined. They save and copy the capture,
+then exit without opening the editor. With no output option, WayShot opens the
+editor. Press Esc in the screenshot UI to cancel; WayShot stays closed.
+
 Recommended GNOME shortcut, if you prefer setting it manually:
 
 ```text
-Command: wayshot-gnome-capture
+Command: wayshot --capture
 Shortcut: Super+Shift+S
 ```
 
@@ -162,7 +179,9 @@ flatpak install flathub io.github.gutopardini.wayshot
 
 When installed via Flatpak, you need to register the keyboard shortcut in your
 desktop environment to maintain the quick capture workflow.
-Use `WAYSHOT_CAPTURE=1` for the documented capture-first shortcut so the command works consistently from GNOME and Flatpak launchers.
+Use `wayshot --capture`, or `WAYSHOT_CAPTURE=1` for an existing shortcut. The
+screenshot portal is requested before the editor window is built, and pressing
+Esc in the screenshot UI closes WayShot without showing it.
 
 #### Automated Install (Recommended)
 
@@ -181,11 +200,11 @@ If you prefer to do it manually:
 3. Click **Add Shortcut** (+).
 4. Fill in the details:
    - **Name**: `WayShot`
-   - **Command**: `flatpak run --env=WAYSHOT_CAPTURE=1 io.github.gutopardini.wayshot`
+   - **Command**: `flatpak run io.github.gutopardini.wayshot --capture`
    - **Shortcut**: `Super+Shift+S` (or your preferred keybinding)
 5. Click **Add**.
 
-Flatpak startup can add a small delay before the GNOME screenshot portal appears, especially on cold start. Keeping WayShot installed locally or already warm in the Flatpak runtime cache usually makes the shortcut feel faster.
+Flatpak still has to start its sandbox, especially on a cold start. After the process is running, WayShot requests the screenshot portal before it builds the editor, so the selector is not waiting on the window.
 
 ### Development & Build
 
