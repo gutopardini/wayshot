@@ -3,6 +3,7 @@ mod cli;
 mod editor;
 mod jxl;
 mod output;
+mod text_editor;
 mod ui;
 
 use std::sync::Arc;

@@ -25,13 +25,59 @@ It is designed for the common “capture, mark, copy, paste” loop:
 - Paste images from the clipboard.
 - Annotate with pen, rectangle, circle/ellipse, line, arrow, text, and blur/pixelate.
 - Select and move annotations.
+- Edit text directly on the image, with multiple lines, word wrapping, and resizable text boxes.
 - Copy the rendered result to the clipboard.
 - `Ctrl+C` copies through `wl-copy` and closes WayShot when the copy succeeds.
 - Save the final image as PNG, JPEG, WebP, JPEG XL, AVIF, or TIFF when the
   corresponding runtime encoder is available and passes a save probe. JPEG XL
   uses `libjxl` when the runtime's GdkPixbuf loader is read-only.
-- Resize text annotations from the settings popover.
+- Change text size and color from the editor controls.
 - Glass-style editor UI with image backdrop.
+
+## Flatpak
+
+WayShot is available on Flathub:
+
+```sh
+flatpak install flathub io.github.gutopardini.wayshot
+```
+
+Capture and open the editor:
+
+```sh
+flatpak run io.github.gutopardini.wayshot --capture
+```
+
+### GNOME Shortcut
+
+When installed via Flatpak, you need to register the keyboard shortcut in your
+desktop environment to maintain the quick capture workflow.
+Use `flatpak run io.github.gutopardini.wayshot --capture` for the shortcut. The
+screenshot portal is requested before the editor window is built, and pressing
+Esc in the screenshot UI closes WayShot without showing it.
+
+#### Automated Install (Recommended)
+
+Run this command to automatically set up the `Super+Shift+S` shortcut:
+
+```sh
+curl -sSL https://raw.githubusercontent.com/gutopardini/wayshot/main/scripts/install-flatpak-shortcut | bash
+```
+
+#### Manual Setup
+
+If you prefer to do it manually:
+
+1. Open **Settings** -> **Keyboard** -> **Keyboard Shortcuts** -> **View and Customize Shortcuts**.
+2. Scroll down and select **Custom Shortcuts**.
+3. Click **Add Shortcut** (+).
+4. Fill in the details:
+   - **Name**: `WayShot`
+   - **Command**: `flatpak run io.github.gutopardini.wayshot --capture`
+   - **Shortcut**: `Super+Shift+S` (or your preferred keybinding)
+5. Click **Add**.
+
+Flatpak still has to start its sandbox, especially on a cold start. After the process is running, WayShot requests the screenshot portal before it builds the editor, so the selector is not waiting on the window.
 
 ## Native Install
 
@@ -136,8 +182,18 @@ Shortcut: Super+Shift+S
 - Use the floating toolbar to choose an annotation tool.
 - Use the color palette to change annotation color.
 - Use settings to change stroke size and zoom.
-- Use settings to change text size and the output image format. Text size also
-  updates the selected text annotation.
+- Choose **Text** and click the image to type directly on it. Enter adds a new
+  line; long text wraps to the box width and the box grows vertically.
+- Drag the left or right edge of the text box to change its width. Drag the top
+  or bottom edge to move it. Resizing the box keeps the font size unchanged.
+- Click outside the box or press `Ctrl+Enter` to finish. Press `Esc` to cancel
+  that edit. Click an existing text with **Text** or **Select** to edit it again;
+  **Select** also lets you drag annotations to move them.
+- Use settings to change text size and the output image format. Text size and
+  palette colors also update the selected text annotation. Text box borders
+  and handles are omitted from saved and copied images.
+- While editing text, `Ctrl+C` copies selected text and `Ctrl+Z`/`Ctrl+Y` undo or
+  redo typing. After finishing, undo/redo applies to the entire annotation edit.
 - Press `Ctrl+C` to copy the rendered image and close the window.
 - Use the copy button if you want to copy without closing the app.
 - Use save to export in the selected format.
@@ -164,49 +220,17 @@ Validate formatting and compile tests:
 
 ```sh
 cargo fmt -- --check
-cargo test
+cargo test --locked
 ```
 
-## Flatpak
-
-WayShot is available on Flathub:
+With a running GTK display, also verify the inline text widget (wrapping at
+multiple zoom levels, resize/move handles, and keyboard routing):
 
 ```sh
-flatpak install flathub io.github.gutopardini.wayshot
+cargo test --locked inline_text_widget -- --ignored --test-threads=1
 ```
 
-### Manual GNOME Shortcut (Flatpak)
-
-When installed via Flatpak, you need to register the keyboard shortcut in your
-desktop environment to maintain the quick capture workflow.
-Use `wayshot --capture`, or `WAYSHOT_CAPTURE=1` for an existing shortcut. The
-screenshot portal is requested before the editor window is built, and pressing
-Esc in the screenshot UI closes WayShot without showing it.
-
-#### Automated Install (Recommended)
-
-Run this command to automatically set up the `Super+Shift+S` shortcut:
-
-```sh
-curl -sSL https://raw.githubusercontent.com/gutopardini/wayshot/main/scripts/install-flatpak-shortcut | bash
-```
-
-#### Manual Setup
-
-If you prefer to do it manually:
-
-1. Open **Settings** -> **Keyboard** -> **Keyboard Shortcuts** -> **View and Customize Shortcuts**.
-2. Scroll down and select **Custom Shortcuts**.
-3. Click **Add Shortcut** (+).
-4. Fill in the details:
-   - **Name**: `WayShot`
-   - **Command**: `flatpak run io.github.gutopardini.wayshot --capture`
-   - **Shortcut**: `Super+Shift+S` (or your preferred keybinding)
-5. Click **Add**.
-
-Flatpak still has to start its sandbox, especially on a cold start. After the process is running, WayShot requests the screenshot portal before it builds the editor, so the selector is not waiting on the window.
-
-### Development & Build
+## Flatpak Development
 
 The Flatpak manifest lives at:
 

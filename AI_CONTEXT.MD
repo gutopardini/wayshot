@@ -19,6 +19,7 @@ This repository contains **WayShot**, a minimal Linux screenshot and annotation 
 - `src/capture.rs`: portal screenshot requests. Interactive dismissal, including GNOME's Escape response, does not fall back to a full-screen capture.
 - `src/output.rs`: headless save, clipboard copy, and stdout output.
 - `src/ui.rs`: most application wiring. Builds the GTK/libadwaita window, header actions, floating tool palette, color palette, settings popover, screenshot portal flow, file open/save, clipboard copy/paste, zoom, and input event controllers.
+- `src/text_editor.rs`: inline GTK text view over the canvas, text frame movement and width handles, edit confirmation/cancellation, and keyboard routing.
 - `src/editor.rs`: editor model and drawing engine. Defines `EditorState`, `Annotation`, `Tool`, coordinate transforms, hit testing, movement, rendering to pixbuf, and Cairo drawing for annotations.
 - `assets/icons/`: SVG icons embedded at compile time with `include_bytes!`.
 - `data/io.github.gutopardini.wayshot.desktop`: desktop entry.
@@ -62,12 +63,14 @@ Annotation tools:
 - Circle/ellipse.
 - Line.
 - Arrow.
-- Text insertion opens a prompt and uses the configurable text size at the click
-  position; selecting an existing text annotation and changing Text size
-  resizes it.
+- Text insertion opens an inline, multiline `TextView` on the image. Text boxes
+  store top-left image coordinates and width, wrap words using Pango, and grow
+  vertically. Their side handles resize the width; top/bottom edges move them.
+  Click outside or Ctrl+Enter commits, Esc cancels, and clicking existing text
+  edits it again. Text size and palette colors update the selected text.
 - Blur/pixelate region.
 
-Editor state is stored in `Rc<RefCell<EditorState>>`. Undo/redo currently tracks pushed annotations, not every state mutation.
+Editor state is stored in `Rc<RefCell<EditorState>>`. Undo/redo stores annotation snapshots; each inline text session is one undo step, including typing, movement, and width changes.
 
 ## Important Implementation Notes
 
@@ -193,9 +196,11 @@ If version was bumped, ensure `Cargo.lock` is synced by running `cargo check`.
 
 - The current test suite is small and focuses on the optional JXL encoder;
   broader UI and portal integration tests are still absent.
-- Text annotations can be added and edited through the text prompt; resizing is
-  available through the settings popover when a text annotation is selected.
-- Undo/redo is annotation-stack based and does not appear to cover selection movement as a distinct undo step, background replacement, or color/tool changes.
+- Inline text uses a native GTK TextView for editing and Pango/Cairo for drawing
+  and export. Keep wrapping, font metrics, and image/view coordinates consistent.
+  Export includes live edits but excludes the text frame and resize handles.
+- Undo/redo tracks annotation edits and movement. Background replacement and
+  tool/default-setting changes are outside annotation history.
 - Clipboard close-after-copy depends on `wl-copy` being available. If `wl-copy` fails, WayShot falls back to GTK clipboard and keeps the window open so clipboard ownership is not lost.
 - Export formats are discovered from working runtime encoders;
   JPEG XL is offered only when the installed runtime provides a functioning

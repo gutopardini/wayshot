@@ -5,6 +5,10 @@ use gdk_pixbuf::Pixbuf;
 use gtk::cairo;
 use gtk::gdk;
 use gtk::gdk::prelude::GdkCairoContextExt;
+use gtk::pango;
+use gtk::pango::prelude::*;
+
+pub const MIN_TEXT_WIDTH: f64 = 48.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Point {
@@ -59,6 +63,7 @@ pub enum Annotation {
         text: String,
         color: gdk::RGBA,
         size: f64,
+        width: f64,
     },
     Blur {
         rect: Rect,
@@ -88,6 +93,11 @@ struct PixelateCacheKey {
     pixel_size: i32,
 }
 
+struct TextEdit {
+    index: usize,
+    before: Vec<Annotation>,
+}
+
 pub struct EditorState {
     pub background: Option<Pixbuf>,
     pub annotations: Vec<Annotation>,
@@ -107,6 +117,7 @@ pub struct EditorState {
     pub zoom: f64,
     pub close_after_copy: bool,
     pub selected: Option<usize>,
+    text_edit: Option<TextEdit>,
     pixelate_cache: RefCell<HashMap<PixelateCacheKey, Pixbuf>>,
 }
 
@@ -132,6 +143,7 @@ impl EditorState {
             zoom: 1.0,
             close_after_copy: true,
             selected: None,
+            text_edit: None,
             pixelate_cache: RefCell::new(HashMap::new()),
         }
     }
@@ -145,6 +157,7 @@ impl EditorState {
         self.drag_start_view = None;
         self.drag_last_image = None;
         self.selected = None;
+        self.text_edit = None;
         self.pixelate_cache.borrow_mut().clear();
     }
 
@@ -154,6 +167,7 @@ impl EditorState {
     }
 
     pub fn undo(&mut self) {
+        self.finish_text_edit(false);
         if let Some(previous) = self.history.pop() {
             self.redo.push(self.annotations.clone());
             self.annotations = previous;
@@ -163,6 +177,7 @@ impl EditorState {
     }
 
     pub fn redo(&mut self) {
+        self.finish_text_edit(false);
         if let Some(next) = self.redo.pop() {
             self.history.push(self.annotations.clone());
             self.annotations = next;
@@ -172,8 +187,77 @@ impl EditorState {
     }
 
     pub fn record_change(&mut self) {
+        self.finish_text_edit(false);
         self.history.push(self.annotations.clone());
         self.redo.clear();
+    }
+
+    pub fn editing_text(&self) -> Option<usize> {
+        self.text_edit.as_ref().map(|edit| edit.index)
+    }
+
+    pub fn begin_text_edit(&mut self, index: usize) {
+        self.finish_text_edit(false);
+        if !matches!(self.annotations.get(index), Some(Annotation::Text { .. })) {
+            return;
+        }
+        self.text_edit = Some(TextEdit {
+            index,
+            before: self.annotations.clone(),
+        });
+        self.selected = Some(index);
+    }
+
+    pub fn begin_new_text(&mut self, mut pos: Point) {
+        self.finish_text_edit(false);
+        let image_width = self
+            .background
+            .as_ref()
+            .map_or(300.0, |bg| bg.width() as f64);
+        let width = (image_width - pos.x)
+            .min(300.0)
+            .max(MIN_TEXT_WIDTH.min(image_width));
+        pos.x = pos.x.min((image_width - width).max(0.0));
+        if let Some(background) = self.background.as_ref() {
+            let line_height = text_layout("", self.text_size, width).pixel_size().1 as f64;
+            pos.y = pos
+                .y
+                .min((background.height() as f64 - line_height).max(0.0));
+        }
+        let index = self.annotations.len();
+        self.text_edit = Some(TextEdit {
+            index,
+            before: self.annotations.clone(),
+        });
+        self.annotations.push(Annotation::Text {
+            pos,
+            text: String::new(),
+            color: self.color,
+            size: self.text_size,
+            width,
+        });
+        self.selected = Some(index);
+    }
+
+    /// Keep a whole inline edit (typing, moving and resizing) as one undo step.
+    pub fn finish_text_edit(&mut self, cancel: bool) {
+        let Some(edit) = self.text_edit.take() else {
+            return;
+        };
+        if cancel {
+            self.annotations = edit.before;
+            self.selected = (edit.index < self.annotations.len()).then_some(edit.index);
+            return;
+        }
+        if matches!(self.annotations.get(edit.index), Some(Annotation::Text { text, .. }) if text.trim().is_empty())
+        {
+            self.annotations.remove(edit.index);
+            self.selected = None;
+        }
+        if self.annotations != edit.before {
+            self.history.push(edit.before);
+            self.redo.clear();
+        }
     }
 
     pub fn discard_unchanged_record(&mut self) {
@@ -221,7 +305,10 @@ pub fn draw(state: &EditorState, ctx: &cairo::Context) {
         let _ = ctx.paint();
     }
 
-    for annotation in state.annotations.iter() {
+    for (index, annotation) in state.annotations.iter().enumerate() {
+        if state.editing_text() == Some(index) {
+            continue;
+        }
         draw_annotation(
             ctx,
             annotation,
@@ -234,7 +321,8 @@ pub fn draw(state: &EditorState, ctx: &cairo::Context) {
     }
 
     if let Some(index) = state.selected
-        && let Some(bounds) = annotation_bounds(&state.annotations[index])
+        && state.editing_text() != Some(index)
+        && let Some(bounds) = state.annotations.get(index).and_then(annotation_bounds)
     {
         let (x, y, w, h) = bounds.normalized();
         let _ = ctx.save();
@@ -433,13 +521,12 @@ fn draw_annotation(
             text,
             color,
             size,
+            width,
         } => {
             let _ = ctx.save();
             set_source_rgba(ctx, color);
-            ctx.select_font_face("Sans", cairo::FontSlant::Normal, cairo::FontWeight::Normal);
-            ctx.set_font_size(*size);
             ctx.move_to(pos.x, pos.y);
-            let _ = ctx.show_text(text);
+            pangocairo::functions::show_layout(ctx, &text_layout(text, *size, *width));
             let _ = ctx.restore();
         }
         Annotation::Blur { rect, pixel_size } => {
@@ -500,18 +587,45 @@ pub fn annotation_bounds(annotation: &Annotation) -> Option<Rect> {
             y2: end.y,
         }),
         Annotation::Text {
-            pos, text, size, ..
+            pos,
+            text,
+            size,
+            width,
+            ..
         } => {
-            let width = (text.len() as f64 * size * 0.6).max(1.0);
+            let (_, height) = text_layout(text, *size, *width).pixel_size();
             Some(Rect {
                 x1: pos.x,
-                y1: pos.y - size,
+                y1: pos.y,
                 x2: pos.x + width,
-                y2: pos.y + size * 0.2,
+                y2: pos.y + height as f64,
             })
         }
         Annotation::Blur { rect, .. } => Some(*rect),
     }
+}
+
+pub fn text_layout(text: &str, size: f64, width: f64) -> pango::Layout {
+    let context = pangocairo::FontMap::default().create_context();
+    pangocairo::functions::context_set_resolution(&context, 96.0);
+    // Match GTK's fractional glyph positions, including at non-integer zoom.
+    context.set_round_glyph_positions(false);
+    let mut options = cairo::FontOptions::new().expect("Cairo font options");
+    options.set_antialias(cairo::Antialias::Gray);
+    options.set_hint_metrics(cairo::HintMetrics::Off);
+    options.set_hint_style(cairo::HintStyle::Slight);
+    pangocairo::functions::context_set_font_options(&context, Some(&options));
+    let layout = pango::Layout::new(&context);
+    let mut font = pango::FontDescription::from_string("Sans");
+    font.set_absolute_size(size * pango::SCALE as f64);
+    layout.set_font_description(Some(&font));
+    layout.set_width((width.max(1.0) * pango::SCALE as f64).round() as i32);
+    layout.set_wrap(pango::WrapMode::WordChar);
+    let attributes = pango::AttrList::new();
+    attributes.insert(pango::AttrInt::new_insert_hyphens(false));
+    layout.set_attributes(Some(&attributes));
+    layout.set_text(text);
+    layout
 }
 
 pub fn hit_test(annotations: &[Annotation], point: Point) -> Option<usize> {
@@ -683,4 +797,158 @@ fn create_pixelated_pixbuf(background: &Pixbuf, key: PixelateCacheKey) -> Option
     let small_h = (key.height as f64 / key.pixel_size as f64).max(1.0).round() as i32;
     let small = sub.scale_simple(small_w, small_h, gdk_pixbuf::InterpType::Nearest)?;
     small.scale_simple(key.width, key.height, gdk_pixbuf::InterpType::Nearest)
+}
+
+#[cfg(test)]
+mod text_tests {
+    use super::*;
+
+    fn set_text(state: &mut EditorState, value: &str) {
+        let index = state.editing_text().unwrap();
+        if let Annotation::Text { text, .. } = &mut state.annotations[index] {
+            *text = value.to_string();
+        }
+    }
+
+    #[test]
+    fn multiline_wrapping_and_hit_testing_follow_pango_metrics() {
+        let text =
+            "Ação: olá, 世界\n\nA long paragraph that wraps automatically across several lines.";
+        let mut annotation = Annotation::Text {
+            pos: Point { x: 20.0, y: 30.0 },
+            text: text.to_string(),
+            color: gdk::RGBA::BLACK,
+            size: 22.0,
+            width: 300.0,
+        };
+        let wide = annotation_bounds(&annotation).unwrap();
+        if let Annotation::Text { width, .. } = &mut annotation {
+            *width = 100.0;
+        }
+        let narrow = annotation_bounds(&annotation).unwrap();
+        assert!(narrow.y2 > wide.y2);
+        assert_eq!(narrow.x2 - narrow.x1, 100.0);
+        let layout = text_layout(text, 22.0, 100.0);
+        assert!(layout.line_count() > 3);
+        assert_eq!(narrow.y2 - narrow.y1, layout.pixel_size().1 as f64);
+        assert_eq!(
+            hit_test(
+                &[annotation.clone()],
+                Point {
+                    x: 25.0,
+                    y: narrow.y2 - 1.0
+                }
+            ),
+            Some(0)
+        );
+        assert_eq!(
+            hit_test(
+                &[annotation],
+                Point {
+                    x: 25.0,
+                    y: narrow.y2 + 1.0
+                }
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn text_sessions_commit_as_one_undo_step_and_restore_on_cancel() {
+        let mut state = EditorState::new();
+        state.begin_new_text(Point { x: 10.0, y: 20.0 });
+        set_text(&mut state, "First line\nSecond line");
+        state.finish_text_edit(false);
+        let original = state.annotations.clone();
+        assert_eq!(state.history.len(), 1);
+
+        state.begin_text_edit(0);
+        set_text(&mut state, "Edited\nMore text");
+        move_annotation(&mut state.annotations[0], 30.0, 40.0);
+        if let Annotation::Text { width, size, .. } = &mut state.annotations[0] {
+            *width = 120.0;
+            *size = 30.0;
+        }
+        let edited = state.annotations.clone();
+        state.undo();
+        assert_eq!(state.annotations, original);
+        assert_eq!(state.editing_text(), None);
+        state.redo();
+        assert_eq!(state.annotations, edited);
+        state.begin_text_edit(0);
+        set_text(&mut state, "Canceled");
+        move_annotation(&mut state.annotations[0], 50.0, 20.0);
+        state.finish_text_edit(true);
+        assert_eq!(state.annotations, edited);
+        assert_eq!(state.history.len(), 2);
+        state.undo();
+        assert_eq!(state.annotations, original);
+        state.undo();
+        assert!(state.annotations.is_empty());
+    }
+
+    #[test]
+    fn empty_or_canceled_new_text_keeps_history_and_redo() {
+        let mut state = EditorState::new();
+        state.begin_new_text(Point { x: 10.0, y: 20.0 });
+        set_text(&mut state, "Original");
+        state.finish_text_edit(false);
+        state.undo();
+        state.begin_new_text(Point { x: 10.0, y: 20.0 });
+        set_text(&mut state, "  \n  ");
+        state.finish_text_edit(false);
+        assert!(state.annotations.is_empty());
+        assert!(state.history.is_empty());
+        assert_eq!(state.redo.len(), 1);
+        state.begin_new_text(Point { x: 10.0, y: 20.0 });
+        set_text(&mut state, "Canceled");
+        state.finish_text_edit(true);
+        assert!(state.annotations.is_empty());
+        assert_eq!(state.redo.len(), 1);
+        state.redo();
+        state.begin_text_edit(0);
+        set_text(&mut state, "");
+        state.finish_text_edit(false);
+        assert!(state.annotations.is_empty());
+        state.undo();
+        assert!(
+            matches!(&state.annotations[0], Annotation::Text { text, .. } if text == "Original")
+        );
+    }
+
+    #[test]
+    fn new_text_near_image_edge_keeps_the_first_line_visible() {
+        let mut state = EditorState::new();
+        state.set_background(Pixbuf::new(gdk_pixbuf::Colorspace::Rgb, false, 8, 400, 300).unwrap());
+        state.begin_new_text(Point { x: 399.0, y: 299.0 });
+        let bounds = annotation_bounds(&state.annotations[0]).unwrap();
+        assert!(bounds.x1 >= 0.0 && bounds.x2 <= 400.0);
+        assert!(bounds.y1 >= 0.0 && bounds.y2 <= 300.0);
+    }
+
+    #[test]
+    fn export_includes_live_multiline_text_without_editor_chrome() {
+        let mut state = EditorState::new();
+        let background = Pixbuf::new(gdk_pixbuf::Colorspace::Rgb, false, 8, 400, 300).unwrap();
+        background.fill(0xffffffff);
+        state.set_background(background);
+        state.begin_new_text(Point { x: 20.0, y: 30.0 });
+        set_text(&mut state, "First line\nSecond line\nAção 世界");
+        let live = render_to_pixbuf(&state).unwrap();
+        let bytes = live.read_pixel_bytes();
+        let stride = live.rowstride() as usize;
+        let channels = live.n_channels() as usize;
+        let line_height = text_layout("First line", 22.0, 300.0).pixel_size().1 as usize;
+        for row in 0..3 {
+            let top = 30 + row * line_height;
+            assert!(
+                (top..top + line_height)
+                    .any(|y| { (20..200).any(|x| bytes[y * stride + x * channels] < 128) }),
+                "line {row} must be present in the exported image"
+            );
+        }
+        state.finish_text_edit(false);
+        let committed = render_to_pixbuf(&state).unwrap();
+        assert_eq!(live.read_pixel_bytes(), committed.read_pixel_bytes());
+    }
 }
