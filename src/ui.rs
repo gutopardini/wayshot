@@ -2092,40 +2092,55 @@ pub fn build_ui(
         let set_status = set_status.clone();
         let set_source_file = set_source_file.clone();
         let apply_background = apply_background.clone();
-        for button in [paste_button.clone(), empty_paste_button.clone()] {
-            let set_status = set_status.clone();
-            let set_source_file = set_source_file.clone();
-            let apply_background = apply_background.clone();
-            button.connect_clicked(move |_| {
-                if let Some(display) = gdk::Display::default() {
-                    let clipboard = display.clipboard();
-                    clipboard.read_texture_async(None::<&gio::Cancellable>, {
-                        let set_status = set_status.clone();
-                        let set_source_file = set_source_file.clone();
-                        let apply_background = apply_background.clone();
-                        move |res| match res {
-                            Ok(Some(texture)) => {
-                                #[allow(deprecated)]
-                                if let Some(pixbuf) = gdk::pixbuf_get_from_texture(&texture) {
-                                    apply_background(pixbuf);
-                                    set_source_file(None);
-                                    set_status("Pasted from clipboard.");
-                                } else {
-                                    set_status("Clipboard image unavailable.");
-                                }
-                            }
-                            Ok(None) => set_status("Clipboard has no image."),
-                            Err(err) => {
-                                let msg = format!("Paste failed: {err}");
-                                set_status(&msg);
+        let paste_from_clipboard = Rc::new(move || {
+            if let Some(display) = gdk::Display::default() {
+                let clipboard = display.clipboard();
+                clipboard.read_texture_async(None::<&gio::Cancellable>, {
+                    let set_status = set_status.clone();
+                    let set_source_file = set_source_file.clone();
+                    let apply_background = apply_background.clone();
+                    move |res| match res {
+                        Ok(Some(texture)) => {
+                            #[allow(deprecated)]
+                            if let Some(pixbuf) = gdk::pixbuf_get_from_texture(&texture) {
+                                apply_background(pixbuf);
+                                set_source_file(None);
+                                set_status("Pasted from clipboard.");
+                            } else {
+                                set_status("Clipboard image unavailable.");
                             }
                         }
-                    });
-                } else {
-                    set_status("Clipboard unavailable.");
-                }
+                        Ok(None) => set_status("Clipboard has no image."),
+                        Err(err) => {
+                            let msg = format!("Paste failed: {err}");
+                            set_status(&msg);
+                        }
+                    }
+                });
+            } else {
+                set_status("Clipboard unavailable.");
+            }
+        });
+        for button in [paste_button.clone(), empty_paste_button.clone()] {
+            let paste_from_clipboard = paste_from_clipboard.clone();
+            button.connect_clicked(move |_| {
+                paste_from_clipboard();
             });
         }
+
+        let paste_action = gio::SimpleAction::new("paste", None);
+        {
+            let paste_from_clipboard = paste_from_clipboard.clone();
+            let text_editor = text_editor.clone();
+            paste_action.connect_activate(move |_, _| {
+                if text_editor.handle_shortcut(gdk::Key::v, gdk::ModifierType::CONTROL_MASK) {
+                    return;
+                }
+                paste_from_clipboard();
+            });
+        }
+        window.add_action(&paste_action);
+        app.set_accels_for_action("win.paste", &["<Control>v"]);
     }
 
     {
