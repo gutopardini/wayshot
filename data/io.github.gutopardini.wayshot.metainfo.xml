@@ -30,21 +30,31 @@
   <screenshots>
     <screenshot type="default">
       <caption>Main editor interface in dark mode</caption>
-      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.3.1/data/screenshots/dark.png</image>
+      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.4.0/data/screenshots/dark.png</image>
     </screenshot>
     <screenshot>
       <caption>Main editor interface in light mode</caption>
-      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.3.1/data/screenshots/light.png</image>
+      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.4.0/data/screenshots/light.png</image>
     </screenshot>
     <screenshot>
       <caption>Start screen with capture, open, and paste actions</caption>
-      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.3.1/data/screenshots/intro.png</image>
+      <image>https://raw.githubusercontent.com/gutopardini/wayshot/v0.4.0/data/screenshots/intro.png</image>
     </screenshot>
   </screenshots>
   <provides>
     <binary>wayshot</binary>
   </provides>
   <releases>
+    <release version="0.4.0" date="2026-10-27">
+      <description>
+        <ul>
+          <li>Add editable multiline text boxes with word wrapping, resizing, and drag-to-move</li>
+          <li>Switch the quick size control between stroke and text size while preserving both settings</li>
+          <li>Add image clipboard shortcuts while keeping text copy and paste available during editing</li>
+          <li>Move Flatpak installation and capture instructions ahead of native installation in the README</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.1" date="2026-10-13">
       <description>
         <ul>

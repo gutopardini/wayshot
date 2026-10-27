@@ -22,7 +22,7 @@ It is designed for the common “capture, mark, copy, paste” loop:
 - Screenshot capture through the XDG desktop portal.
 - Capture-first helper command for GNOME/Wayland: `wayshot-gnome-capture`.
 - Open images from disk.
-- Paste images from the clipboard.
+- Paste images from the clipboard with `Ctrl+V`.
 - Annotate with pen, rectangle, circle/ellipse, line, arrow, text, and blur/pixelate.
 - Select and move annotations.
 - Edit text directly on the image, with multiple lines, word wrapping, and resizable text boxes.
@@ -31,7 +31,8 @@ It is designed for the common “capture, mark, copy, paste” loop:
 - Save the final image as PNG, JPEG, WebP, JPEG XL, AVIF, or TIFF when the
   corresponding runtime encoder is available and passes a save probe. JPEG XL
   uses `libjxl` when the runtime's GdkPixbuf loader is read-only.
-- Change text size and color from the editor controls.
+- Change text size and color from the editor controls; stroke width and text
+  size are saved independently.
 - Glass-style editor UI with image backdrop.
 
 ## Flatpak
@@ -192,8 +193,10 @@ Shortcut: Super+Shift+S
 - Use settings to change text size and the output image format. Text size and
   palette colors also update the selected text annotation. Text box borders
   and handles are omitted from saved and copied images.
-- While editing text, `Ctrl+C` copies selected text and `Ctrl+Z`/`Ctrl+Y` undo or
-  redo typing. After finishing, undo/redo applies to the entire annotation edit.
+- While editing text, `Ctrl+C`/`Ctrl+V` copy and paste text and `Ctrl+Z`/`Ctrl+Y`
+  undo or redo typing. With no text selected, `Ctrl+C` copies the rendered image;
+  `Ctrl+V` on the canvas pastes a clipboard image. After finishing, undo/redo
+  applies to the entire annotation edit.
 - Press `Ctrl+C` to copy the rendered image and close the window.
 - Use the copy button if you want to copy without closing the app.
 - Use save to export in the selected format.
