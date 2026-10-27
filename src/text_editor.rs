@@ -288,7 +288,8 @@ impl InlineTextEditor {
         }
         let buffer = self.view.buffer();
         match key.to_lower() {
-            gdk::Key::c => self.view.emit_copy_clipboard(),
+            gdk::Key::c if buffer.has_selection() => self.view.emit_copy_clipboard(),
+            gdk::Key::c => return false,
             gdk::Key::z if !modifiers.contains(gdk::ModifierType::SHIFT_MASK) => {
                 if buffer.can_undo() {
                     buffer.undo();
