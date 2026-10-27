@@ -1094,6 +1094,32 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/pangocairo/pangocairo-0.21.5.crate",
+        "sha256": "b36c5c84304072939d860595d9bda2a797d3bd6f7215e20b8ccd0e72d84da8c8",
+        "dest": "cargo/vendor/pangocairo-0.21.5"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"b36c5c84304072939d860595d9bda2a797d3bd6f7215e20b8ccd0e72d84da8c8\", \"files\": {}}",
+        "dest": "cargo/vendor/pangocairo-0.21.5",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/pangocairo-sys/pangocairo-sys-0.21.5.crate",
+        "sha256": "eadbb01ad38be76e0d37e329d40ba0f3f9ef261d7b84b05201d7a0f14f819406",
+        "dest": "cargo/vendor/pangocairo-sys-0.21.5"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"eadbb01ad38be76e0d37e329d40ba0f3f9ef261d7b84b05201d7a0f14f819406\", \"files\": {}}",
+        "dest": "cargo/vendor/pangocairo-sys-0.21.5",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/parking/parking-2.2.1.crate",
         "sha256": "f38d5652c16fde515bb1ecef450ab0f6a219d619a7274976324d5e377f7dceba",
         "dest": "cargo/vendor/parking-2.2.1"

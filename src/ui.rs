@@ -18,6 +18,7 @@ use crate::capture::{self, CaptureFailure, CaptureMode};
 use crate::editor::{self, Annotation, EditorState, Point, Rect, Tool};
 use crate::jxl;
 use crate::output;
+use crate::text_editor::InlineTextEditor;
 
 const ICON_CAPTURE: &[u8] = include_bytes!("../assets/icons/camera.svg");
 const ICON_UNDO: &[u8] = include_bytes!("../assets/icons/arrow-back-up.svg");
@@ -189,82 +190,6 @@ fn present_window(window: &adw::ApplicationWindow) {
     window.set_visible(true);
     window.unminimize();
     window.present();
-}
-
-fn show_text_editor(
-    window: &adw::ApplicationWindow,
-    title: &str,
-    initial_text: Option<&str>,
-    on_submit: impl Fn(String) + 'static,
-) {
-    let text_window = gtk::Window::builder()
-        .transient_for(window)
-        .modal(true)
-        .title(title)
-        .default_width(360)
-        .build();
-
-    let text_box = gtk::Box::builder()
-        .orientation(gtk::Orientation::Vertical)
-        .spacing(12)
-        .margin_top(16)
-        .margin_bottom(16)
-        .margin_start(16)
-        .margin_end(16)
-        .build();
-
-    let entry = gtk::Entry::builder()
-        .placeholder_text("Text")
-        .activates_default(true)
-        .build();
-    if let Some(text) = initial_text {
-        entry.set_text(text);
-    }
-    text_box.append(&entry);
-
-    let actions = gtk::Box::builder()
-        .orientation(gtk::Orientation::Horizontal)
-        .spacing(8)
-        .halign(gtk::Align::End)
-        .build();
-    let cancel_button = gtk::Button::with_label("Cancel");
-    let add_button = gtk::Button::with_label("OK");
-    add_button.add_css_class("suggested-action");
-    actions.append(&cancel_button);
-    actions.append(&add_button);
-    text_box.append(&actions);
-    text_window.set_child(Some(&text_box));
-
-    let on_submit: Rc<dyn Fn(String)> = Rc::new(on_submit);
-    let submit = Rc::new({
-        let entry = entry.clone();
-        let text_window = text_window.clone();
-        let on_submit = on_submit.clone();
-        move || {
-            let text = entry.text().trim().to_string();
-            if !text.is_empty() {
-                on_submit(text);
-            }
-            text_window.close();
-        }
-    });
-
-    {
-        let submit = submit.clone();
-        add_button.connect_clicked(move |_| submit());
-    }
-    {
-        let submit = submit.clone();
-        entry.connect_activate(move |_| submit());
-    }
-    {
-        let text_window = text_window.clone();
-        cancel_button.connect_clicked(move |_| text_window.close());
-    }
-
-    text_window.present();
-    entry.grab_focus();
-    entry.select_region(0, -1);
 }
 
 fn theme_css(is_dark: bool) -> &'static str {
@@ -667,15 +592,27 @@ pub fn build_ui(
 
     let size_adjustment =
         gtk::Adjustment::new(state.borrow().stroke_width, 1.0, 32.0, 1.0, 2.0, 0.0);
+    let text_size_adjustment =
+        gtk::Adjustment::new(state.borrow().text_size, 8.0, 128.0, 1.0, 4.0, 0.0);
     let size_spin = gtk::SpinButton::builder()
         .adjustment(&size_adjustment)
         .climb_rate(1.0)
         .digits(0)
         .numeric(true)
-        .width_chars(2)
+        .width_chars(3)
         .tooltip_text("Stroke size")
         .build();
     size_spin.add_css_class("compact-spin");
+    let text_size_quick_spin = gtk::SpinButton::builder()
+        .adjustment(&text_size_adjustment)
+        .climb_rate(1.0)
+        .digits(0)
+        .numeric(true)
+        .width_chars(3)
+        .tooltip_text("Text size")
+        .build();
+    text_size_quick_spin.add_css_class("compact-spin");
+    text_size_quick_spin.set_visible(false);
     let zoom_adjustment = gtk::Adjustment::new(1.0, 0.25, 3.0, 0.05, 0.1, 0.0);
     let zoom_scale = gtk::Scale::builder()
         .orientation(gtk::Orientation::Horizontal)
@@ -697,15 +634,20 @@ pub fn build_ui(
     let size_label = gtk::Label::new(Some("Stroke"));
     size_label.set_xalign(0.0);
     size_label.set_hexpand(true);
+    size_label.set_width_chars(9);
     size_label.add_css_class("dock-label");
     size_row.append(&size_label);
     size_row.append(&size_spin);
+    size_row.append(&text_size_quick_spin);
     let size_icon = create_icon(ICON_PEN, &icon_images, &icon_color);
+    let text_size_icon = create_icon(ICON_TEXT, &icon_images, &icon_color);
+    text_size_icon.set_visible(false);
     let size_group = gtk::Box::builder()
         .orientation(gtk::Orientation::Horizontal)
         .spacing(8)
         .build();
     size_group.append(&size_icon);
+    size_group.append(&text_size_icon);
     size_group.append(&size_row);
     let zoom_row = gtk::Box::builder()
         .orientation(gtk::Orientation::Horizontal)
@@ -821,15 +763,19 @@ pub fn build_ui(
     let drawing_area = gtk::DrawingArea::builder()
         .content_width(900)
         .content_height(600)
+        .focusable(true)
         .build();
     drawing_area.set_hexpand(true);
     drawing_area.set_vexpand(true);
     drawing_area.add_css_class("editor-canvas");
 
+    let canvas_overlay = gtk::Overlay::builder().child(&drawing_area).build();
+    let text_editor = InlineTextEditor::new(state.clone(), &canvas_overlay, &drawing_area);
+
     let scroller = gtk::ScrolledWindow::builder()
         .hscrollbar_policy(gtk::PolicyType::Automatic)
         .vscrollbar_policy(gtk::PolicyType::Automatic)
-        .child(&drawing_area)
+        .child(&canvas_overlay)
         .build();
     scroller.add_css_class("editor-scroller");
     scroller.set_visible(false);
@@ -994,8 +940,6 @@ pub fn build_ui(
         .width_request(260)
         .build();
 
-    let text_size_adjustment =
-        gtk::Adjustment::new(state.borrow().text_size, 8.0, 128.0, 1.0, 4.0, 0.0);
     let text_size_spin = gtk::SpinButton::builder()
         .adjustment(&text_size_adjustment)
         .climb_rate(1.0)
@@ -1072,12 +1016,13 @@ pub fn build_ui(
         let state = state.clone();
         let drawing_area = drawing_area.clone();
         let text_size_updating = text_size_updating.clone();
-        text_size_spin.connect_value_changed(move |spin| {
+        let text_editor = text_editor.clone();
+        text_size_adjustment.connect_value_changed(move |adjustment| {
             if text_size_updating.get() {
                 return;
             }
 
-            let value = spin.value();
+            let value = adjustment.value();
             {
                 let mut state = state.borrow_mut();
                 state.text_size = value;
@@ -1087,13 +1032,16 @@ pub fn build_ui(
                         Some(Annotation::Text { size, .. }) if (*size - value).abs() > f64::EPSILON
                     )
                 {
-                    state.record_change();
+                    if state.editing_text() != Some(index) {
+                        state.record_change();
+                    }
                     if let Some(Annotation::Text { size, .. }) = state.annotations.get_mut(index) {
                         *size = value;
                     }
                 }
             }
             save_settings(&state);
+            text_editor.refresh();
             drawing_area.queue_draw();
         });
     }
@@ -1108,24 +1056,46 @@ pub fn build_ui(
         });
     }
 
-    let sync_text_size = Rc::new({
+    let sync_size_controls = Rc::new({
         let state = state.clone();
-        let text_size_spin = text_size_spin.clone();
+        let text_size_adjustment = text_size_adjustment.clone();
         let text_size_updating = text_size_updating.clone();
+        let text_editor = text_editor.clone();
+        let size_label = size_label.clone();
+        let size_spin = size_spin.clone();
+        let text_size_quick_spin = text_size_quick_spin.clone();
+        let size_icon = size_icon.clone();
+        let text_size_icon = text_size_icon.clone();
         move || {
-            let size = {
+            let (text_size, show_text_size) = {
                 let state = state.borrow();
-                state
+                let selected = state
                     .selected
-                    .and_then(|index| match state.annotations.get(index) {
-                        Some(Annotation::Text { size, .. }) => Some(*size),
-                        _ => None,
-                    })
-                    .unwrap_or(state.text_size)
+                    .and_then(|index| state.annotations.get(index));
+                let text_size = match selected {
+                    Some(Annotation::Text { size, .. }) => *size,
+                    _ => state.text_size,
+                };
+                let show_text_size = match selected {
+                    Some(Annotation::Text { .. }) => true,
+                    Some(_) => false,
+                    None => state.tool == Tool::Text,
+                };
+                (text_size, show_text_size)
             };
             text_size_updating.set(true);
-            text_size_spin.set_value(size);
+            text_size_adjustment.set_value(text_size);
             text_size_updating.set(false);
+            size_label.set_text(if show_text_size {
+                "Text size"
+            } else {
+                "Stroke"
+            });
+            size_spin.set_visible(!show_text_size);
+            text_size_quick_spin.set_visible(show_text_size);
+            size_icon.set_visible(!show_text_size);
+            text_size_icon.set_visible(show_text_size);
+            text_editor.refresh();
         }
     });
 
@@ -1197,6 +1167,7 @@ pub fn build_ui(
         .title("WayShot")
         .content(&toolbar_view)
         .build();
+    text_editor.connect_window(&window);
 
     let zoom_updating = Rc::new(Cell::new(false));
     let fit_updating = Rc::new(Cell::new(false));
@@ -1212,7 +1183,9 @@ pub fn build_ui(
         let fit_toggle = fit_toggle.clone();
         let zoom_updating = zoom_updating.clone();
         let fit_updating = fit_updating.clone();
+        let text_editor = text_editor.clone();
         Rc::new(move |pixbuf: gdk_pixbuf::Pixbuf| {
+            text_editor.finish(false);
             {
                 let mut state = state.borrow_mut();
                 state.set_background(pixbuf);
@@ -1433,7 +1406,16 @@ pub fn build_ui(
 
     {
         let drawing_area = drawing_area.clone();
+        let state = state.clone();
+        let scroller = scroller.clone();
+        let text_editor = text_editor.clone();
         drawing_area.connect_resize(move |area, _, _| {
+            {
+                let mut state = state.borrow_mut();
+                state.viewport_width = scroller.width().max(1);
+                state.viewport_height = scroller.height().max(1);
+            }
+            text_editor.refresh();
             area.queue_draw();
         });
     }
@@ -1446,9 +1428,14 @@ pub fn build_ui(
         let drawing_area = drawing_area.clone();
         let move_changed = move_changed.clone();
         let eraser_changed = eraser_changed.clone();
-        let sync_text_size = sync_text_size.clone();
+        let sync_size_controls = sync_size_controls.clone();
         drag.connect_drag_begin(move |_, x, y| {
             let mut state = state.borrow_mut();
+            if state.editing_text().is_some() {
+                state.drag_start_view = None;
+                state.drag_last_image = None;
+                return;
+            }
             let Some(point) = editor::map_to_image_checked(&state, x, y) else {
                 state.drag_start_view = None;
                 state.drag_last_image = None;
@@ -1531,7 +1518,7 @@ pub fn build_ui(
             let sync_text = matches!(state.tool, Tool::Select);
             drop(state);
             if sync_text {
-                sync_text_size();
+                sync_size_controls();
             }
             drawing_area.queue_draw();
         });
@@ -1658,18 +1645,21 @@ pub fn build_ui(
     {
         let state = state.clone();
         let drawing_area = drawing_area.clone();
-        let window = window.clone();
-        let sync_text_size = sync_text_size.clone();
-        click.connect_pressed(move |_, n_press, x, y| {
+        let text_editor = text_editor.clone();
+        let sync_size_controls = sync_size_controls.clone();
+        click.connect_pressed(move |_, _, x, y| {
+            if text_editor.active() {
+                text_editor.finish(false);
+                drawing_area.grab_focus();
+                return;
+            }
             let pos = {
                 let state_ref = state.borrow();
                 let Some(pos) = editor::map_to_image_checked(&state_ref, x, y) else {
                     if matches!(state_ref.tool, Tool::Select) {
                         drop(state_ref);
-                        let mut editor_state = state.borrow_mut();
-                        editor_state.selected = None;
-                        drop(editor_state);
-                        sync_text_size();
+                        state.borrow_mut().selected = None;
+                        sync_size_controls();
                         drawing_area.queue_draw();
                     }
                     return;
@@ -1679,63 +1669,47 @@ pub fn build_ui(
             let tool = state.borrow().tool;
             match tool {
                 Tool::Text => {
-                    let (color, size) = {
+                    let existing = {
                         let state = state.borrow();
-                        (state.color, state.text_size)
+                        editor::hit_test(&state.annotations, pos).filter(|&index| {
+                            matches!(state.annotations[index], Annotation::Text { .. })
+                        })
                     };
-                    show_text_editor(&window, "Add Text", None, {
-                        let state = state.clone();
-                        let drawing_area = drawing_area.clone();
-                        move |text| {
-                            state.borrow_mut().push_annotation(Annotation::Text {
-                                pos,
-                                text,
-                                color,
-                                size,
-                            });
-                            drawing_area.queue_draw();
-                        }
-                    });
+                    text_editor.begin(pos, existing);
+                    sync_size_controls();
                 }
                 Tool::Select => {
                     let mut editor_state = state.borrow_mut();
                     editor_state.selected = editor::hit_test(&editor_state.annotations, pos);
                     drop(editor_state);
-                    sync_text_size();
+                    drawing_area.grab_focus();
+                    sync_size_controls();
                     drawing_area.queue_draw();
-
-                    let editor_state = state.borrow();
-                    if n_press == 2
-                        && let Some(index) = editor_state.selected
-                        && let Some(Annotation::Text { text, .. }) =
-                            editor_state.annotations.get(index).cloned()
-                    {
-                        drop(editor_state);
-                        show_text_editor(&window, "Edit Text", Some(&text), {
-                            let state = state.clone();
-                            let drawing_area = drawing_area.clone();
-                            move |new_text| {
-                                let mut editor_state = state.borrow_mut();
-                                let changed = matches!(
-                                    editor_state.annotations.get(index),
-                                    Some(Annotation::Text { text, .. }) if *text != new_text
-                                );
-                                if !changed {
-                                    return;
-                                }
-                                editor_state.record_change();
-                                if let Some(Annotation::Text { text, .. }) =
-                                    editor_state.annotations.get_mut(index)
-                                {
-                                    *text = new_text;
-                                }
-                                editor_state.selected = Some(index);
-                                drawing_area.queue_draw();
-                            }
-                        });
-                    }
                 }
                 _ => {}
+            }
+        });
+    }
+    {
+        let state = state.clone();
+        let move_changed = move_changed.clone();
+        let text_editor = text_editor.clone();
+        click.connect_released(move |_, _, x, y| {
+            let existing = {
+                let state = state.borrow();
+                if state.tool != Tool::Select || move_changed.get() || text_editor.active() {
+                    return;
+                }
+                let point = editor::map_to_image_checked(&state, x, y);
+                state.selected.filter(|&index| {
+                    matches!(state.annotations.get(index), Some(Annotation::Text { .. }))
+                        && point.and_then(|point| editor::hit_test(&state.annotations, point))
+                            == Some(index)
+                })
+            };
+            if let Some(index) = existing {
+                let pos = editor::map_to_image(&state.borrow(), x, y);
+                text_editor.begin(pos, Some(index));
             }
         });
     }
@@ -1749,7 +1723,9 @@ pub fn build_ui(
             let tool = *tool;
             let buttons = buttons.clone();
             let state = state.clone();
-            let sync_text_size = sync_text_size.clone();
+            let sync_size_controls = sync_size_controls.clone();
+            let text_editor = text_editor.clone();
+            let drawing_area = drawing_area.clone();
             button.connect_toggled(move |active_button| {
                 if !active_button.is_active() {
                     return;
@@ -1759,12 +1735,15 @@ pub fn build_ui(
                         other.set_active(false);
                     }
                 }
+                text_editor.finish(false);
                 let mut state = state.borrow_mut();
                 state.tool = tool;
                 state.draft = None;
                 state.selected = None;
                 drop(state);
-                sync_text_size();
+                drawing_area.set_cursor_from_name((tool == Tool::Text).then_some("text"));
+                drawing_area.queue_draw();
+                sync_size_controls();
             });
         }
 
@@ -1775,6 +1754,31 @@ pub fn build_ui(
             }
         }
     }
+
+    let apply_color = Rc::new({
+        let state = state.clone();
+        let text_editor = text_editor.clone();
+        move |color: gdk::RGBA| {
+            {
+                let mut state = state.borrow_mut();
+                state.color = color;
+                if let Some(index) = state.selected
+                    && matches!(state.annotations.get(index), Some(Annotation::Text { color: current, .. }) if *current != color)
+                {
+                    if state.editing_text() != Some(index) {
+                        state.record_change();
+                    }
+                    if let Some(Annotation::Text { color: current, .. }) =
+                        state.annotations.get_mut(index)
+                    {
+                        *current = color;
+                    }
+                }
+            }
+            save_settings(&state);
+            text_editor.refresh();
+        }
+    });
 
     {
         let colors: Vec<(&str, gdk::RGBA)> = vec![
@@ -1810,7 +1814,8 @@ pub fn build_ui(
         for (color, button) in buttons.iter() {
             let color = *color;
             let buttons = buttons.clone();
-            let state = state.clone();
+            let apply_color = apply_color.clone();
+            button.connect_clicked(|button| button.set_active(true));
             button.connect_toggled(move |active_button| {
                 if !active_button.is_active() {
                     return;
@@ -1820,8 +1825,7 @@ pub fn build_ui(
                         other.set_active(false);
                     }
                 }
-                state.borrow_mut().color = color;
-                save_settings(&state);
+                apply_color(color);
             });
         }
 
@@ -1840,14 +1844,14 @@ pub fn build_ui(
         let state = state.clone();
         let window = window.clone();
         let dialog = color_dialog.clone();
+        let apply_color = apply_color.clone();
         color_button.connect_clicked(move |_| {
             let current = state.borrow().color;
             dialog.choose_rgba(Some(&window), Some(&current), None::<&gio::Cancellable>, {
-                let state = state.clone();
+                let apply_color = apply_color.clone();
                 move |result| {
                     if let Ok(color) = result {
-                        state.borrow_mut().color = color;
-                        save_settings(&state);
+                        apply_color(color);
                     }
                 }
             });
@@ -1867,10 +1871,14 @@ pub fn build_ui(
         {
             let state = state.clone();
             let drawing_area = drawing_area.clone();
-            let sync_text_size = sync_text_size.clone();
+            let sync_size_controls = sync_size_controls.clone();
+            let text_editor = text_editor.clone();
             undo_action.connect_activate(move |_, _| {
+                if text_editor.handle_shortcut(gdk::Key::z, gdk::ModifierType::CONTROL_MASK) {
+                    return;
+                }
                 state.borrow_mut().undo();
-                sync_text_size();
+                sync_size_controls();
                 drawing_area.queue_draw();
             });
         }
@@ -1881,10 +1889,14 @@ pub fn build_ui(
         {
             let state = state.clone();
             let drawing_area = drawing_area.clone();
-            let sync_text_size = sync_text_size.clone();
+            let sync_size_controls = sync_size_controls.clone();
+            let text_editor = text_editor.clone();
             redo_action.connect_activate(move |_, _| {
+                if text_editor.handle_shortcut(gdk::Key::y, gdk::ModifierType::CONTROL_MASK) {
+                    return;
+                }
                 state.borrow_mut().redo();
-                sync_text_size();
+                sync_size_controls();
                 drawing_area.queue_draw();
             });
         }
@@ -1894,10 +1906,10 @@ pub fn build_ui(
         {
             let state = state.clone();
             let drawing_area = drawing_area.clone();
-            let sync_text_size = sync_text_size.clone();
+            let sync_size_controls = sync_size_controls.clone();
             undo_button.connect_clicked(move |_| {
                 state.borrow_mut().undo();
-                sync_text_size();
+                sync_size_controls();
                 drawing_area.queue_draw();
             });
         }
@@ -1905,19 +1917,23 @@ pub fn build_ui(
     {
         let state = state.clone();
         let drawing_area = drawing_area.clone();
-        let sync_text_size = sync_text_size.clone();
+        let sync_size_controls = sync_size_controls.clone();
         redo_button.connect_clicked(move |_| {
             state.borrow_mut().redo();
-            sync_text_size();
+            sync_size_controls();
             drawing_area.queue_draw();
         });
     }
     {
         let state = state.clone();
         let drawing_area = drawing_area.clone();
-        let sync_text_size = sync_text_size.clone();
+        let sync_size_controls = sync_size_controls.clone();
         let key_controller = gtk::EventControllerKey::new();
+        let text_editor = text_editor.clone();
         key_controller.connect_key_pressed(move |_, key, _, _| {
+            if text_editor.has_focus() {
+                return glib::Propagation::Proceed;
+            }
             if key != gdk::Key::Delete && key != gdk::Key::BackSpace {
                 return glib::Propagation::Proceed;
             }
@@ -1927,7 +1943,7 @@ pub fn build_ui(
                 && state.remove_annotation(index).is_some()
             {
                 drop(state);
-                sync_text_size();
+                sync_size_controls();
                 drawing_area.queue_draw();
                 return glib::Propagation::Stop;
             }
@@ -1942,7 +1958,9 @@ pub fn build_ui(
         let copy_behavior_state = state.clone();
         let set_status = set_status.clone();
         let set_status_for_render = set_status.clone();
+        let text_editor_for_render = text_editor.clone();
         let render_for_copy = Rc::new(move || {
+            text_editor_for_render.finish(false);
             let render_state = render_state.borrow();
             let Some(pixbuf) = editor::render_to_pixbuf(&render_state) else {
                 set_status_for_render("Nothing to copy yet.");
@@ -2007,7 +2025,11 @@ pub fn build_ui(
         {
             let copy_for_close = copy_for_close.clone();
             let window = window.clone();
+            let text_editor = text_editor.clone();
             copy_action.connect_activate(move |_, _| {
+                if text_editor.handle_shortcut(gdk::Key::c, gdk::ModifierType::CONTROL_MASK) {
+                    return;
+                }
                 if copy_for_close() {
                     window.close();
                 }
@@ -2070,40 +2092,55 @@ pub fn build_ui(
         let set_status = set_status.clone();
         let set_source_file = set_source_file.clone();
         let apply_background = apply_background.clone();
-        for button in [paste_button.clone(), empty_paste_button.clone()] {
-            let set_status = set_status.clone();
-            let set_source_file = set_source_file.clone();
-            let apply_background = apply_background.clone();
-            button.connect_clicked(move |_| {
-                if let Some(display) = gdk::Display::default() {
-                    let clipboard = display.clipboard();
-                    clipboard.read_texture_async(None::<&gio::Cancellable>, {
-                        let set_status = set_status.clone();
-                        let set_source_file = set_source_file.clone();
-                        let apply_background = apply_background.clone();
-                        move |res| match res {
-                            Ok(Some(texture)) => {
-                                #[allow(deprecated)]
-                                if let Some(pixbuf) = gdk::pixbuf_get_from_texture(&texture) {
-                                    apply_background(pixbuf);
-                                    set_source_file(None);
-                                    set_status("Pasted from clipboard.");
-                                } else {
-                                    set_status("Clipboard image unavailable.");
-                                }
-                            }
-                            Ok(None) => set_status("Clipboard has no image."),
-                            Err(err) => {
-                                let msg = format!("Paste failed: {err}");
-                                set_status(&msg);
+        let paste_from_clipboard = Rc::new(move || {
+            if let Some(display) = gdk::Display::default() {
+                let clipboard = display.clipboard();
+                clipboard.read_texture_async(None::<&gio::Cancellable>, {
+                    let set_status = set_status.clone();
+                    let set_source_file = set_source_file.clone();
+                    let apply_background = apply_background.clone();
+                    move |res| match res {
+                        Ok(Some(texture)) => {
+                            #[allow(deprecated)]
+                            if let Some(pixbuf) = gdk::pixbuf_get_from_texture(&texture) {
+                                apply_background(pixbuf);
+                                set_source_file(None);
+                                set_status("Pasted from clipboard.");
+                            } else {
+                                set_status("Clipboard image unavailable.");
                             }
                         }
-                    });
-                } else {
-                    set_status("Clipboard unavailable.");
-                }
+                        Ok(None) => set_status("Clipboard has no image."),
+                        Err(err) => {
+                            let msg = format!("Paste failed: {err}");
+                            set_status(&msg);
+                        }
+                    }
+                });
+            } else {
+                set_status("Clipboard unavailable.");
+            }
+        });
+        for button in [paste_button.clone(), empty_paste_button.clone()] {
+            let paste_from_clipboard = paste_from_clipboard.clone();
+            button.connect_clicked(move |_| {
+                paste_from_clipboard();
             });
         }
+
+        let paste_action = gio::SimpleAction::new("paste", None);
+        {
+            let paste_from_clipboard = paste_from_clipboard.clone();
+            let text_editor = text_editor.clone();
+            paste_action.connect_activate(move |_, _| {
+                if text_editor.handle_shortcut(gdk::Key::v, gdk::ModifierType::CONTROL_MASK) {
+                    return;
+                }
+                paste_from_clipboard();
+            });
+        }
+        window.add_action(&paste_action);
+        app.set_accels_for_action("win.paste", &["<Control>v"]);
     }
 
     {
@@ -2111,7 +2148,9 @@ pub fn build_ui(
         let state = state.clone();
         let set_status = set_status.clone();
         let file_dialog = gtk::FileDialog::new();
+        let text_editor = text_editor.clone();
         save_button.connect_clicked(move |_| {
+            text_editor.finish(false);
             let format = save_format_by_id(&state.borrow().save_format);
             let Some(pixbuf) = editor::render_to_pixbuf(&state.borrow()) else {
                 set_status("Nothing to save yet.");
@@ -2160,6 +2199,7 @@ pub fn build_ui(
         let fit_toggle = fit_toggle.clone();
         let zoom_updating = zoom_updating.clone();
         let fit_updating = fit_updating.clone();
+        let text_editor = text_editor.clone();
         zoom_adjustment.connect_value_changed(move |adj| {
             if zoom_updating.get() {
                 return;
@@ -2173,6 +2213,8 @@ pub fn build_ui(
             let mut state = state.borrow_mut();
             state.fit_to_window = false;
             state.zoom = adj.value();
+            drop(state);
+            text_editor.refresh();
             drawing_area.queue_draw();
         });
     }
@@ -2183,6 +2225,7 @@ pub fn build_ui(
         let zoom_updating = zoom_updating.clone();
         let fit_updating = fit_updating.clone();
         let scroller = scroller.clone();
+        let text_editor = text_editor.clone();
         fit_toggle.connect_toggled(move |toggle| {
             if fit_updating.get() {
                 return;
@@ -2197,6 +2240,8 @@ pub fn build_ui(
                 zoom_adjustment.set_value(scale);
                 zoom_updating.set(false);
             }
+            drop(state);
+            text_editor.refresh();
             drawing_area.queue_draw();
         });
     }
@@ -2205,6 +2250,7 @@ pub fn build_ui(
         let drawing_area = drawing_area.clone();
         let zoom_adjustment = zoom_adjustment.clone();
         let zoom_updating = zoom_updating.clone();
+        let text_editor = text_editor.clone();
         zoom_reset.connect_clicked(move |_| {
             let mut state = state.borrow_mut();
             state.fit_to_window = false;
@@ -2212,6 +2258,8 @@ pub fn build_ui(
             zoom_updating.set(true);
             zoom_adjustment.set_value(1.0);
             zoom_updating.set(false);
+            drop(state);
+            text_editor.refresh();
             drawing_area.queue_draw();
         });
     }
@@ -2222,6 +2270,7 @@ pub fn build_ui(
         let zoom_updating = zoom_updating.clone();
         let fit_updating = fit_updating.clone();
         let fit_toggle = fit_toggle.clone();
+        let text_editor = text_editor.clone();
         let scroll = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::VERTICAL);
         scroll.connect_scroll(move |controller, _, dy| {
             if !controller
@@ -2240,6 +2289,8 @@ pub fn build_ui(
             zoom_updating.set(true);
             zoom_adjustment.set_value(state.zoom);
             zoom_updating.set(false);
+            drop(state);
+            text_editor.refresh();
             drawing_area_for_scroll.queue_draw();
             glib::Propagation::Stop
         });
